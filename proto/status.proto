@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package status;
+
+// Deliberately-broken endpoint. Fail always returns a gRPC error
+// using the code/message supplied in the request, so clients can be
+// exercised against every standard grpc-status value (1..16).
+service Status {
+  rpc Fail (FailRequest) returns (FailReply);
+}
+
+message FailRequest {
+  // gRPC status code to return (1..16). 0 (OK) is allowed too, in
+  // which case the server returns FailReply successfully.
+  int32  code    = 1;
+  // grpc-message trailer value to attach to the error.
+  string message = 2;
+}
+
+message FailReply {
+  // Only sent when code == 0. Otherwise the call returns an error
+  // and no message body.
+  string note = 1;
+}

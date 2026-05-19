@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package echo;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/any.proto";
+
+// Kitchen-sink service. The Payload message exercises every protobuf
+// wire-format case the POC needs to handle.
+service Echo {
+  rpc Echo (EchoRequest) returns (EchoReply);
+}
+
+message EchoRequest {
+  Payload payload = 1;
+}
+
+message EchoReply {
+  Payload payload = 1;
+  google.protobuf.Timestamp received_at = 2;
+}
+
+message Payload {
+  // --- varint wire type (0) ---
+  int32  i32  = 1;
+  int64  i64  = 2;
+  uint32 u32  = 3;
+  uint64 u64  = 4;
+  sint32 s32  = 5;   // zig-zag
+  sint64 s64  = 6;   // zig-zag
+  bool   flag = 7;
+  Color  color = 8;  // enum
+
+  // --- 64-bit wire type (1) ---
+  fixed64  f64  = 9;
+  sfixed64 sf64 = 10;
+  double   d    = 11;
+
+  // --- length-delimited wire type (2) ---
+  string text   = 12;
+  bytes  blob   = 13;
+  Nested nested = 14;
+
+  // --- 32-bit wire type (5) ---
+  fixed32  f32  = 15;
+  sfixed32 sf32 = 16;
+  float    fl   = 17;
+
+  // --- repeated (packed by default in proto3 for primitives) ---
+  repeated int32  packed_ints = 18;
+  // --- repeated length-delimited (always unpacked) ---
+  repeated string strings     = 19;
+
+  // --- oneof ---
+  oneof choice {
+    string choice_text = 20;
+    int32  choice_int  = 21;
+  }
+
+  // --- map ---
+  map<string, int32> tags = 22;
+
+  // --- well-known types ---
+  google.protobuf.Duration duration  = 23;
+  google.protobuf.Any      any_field = 24;
+}
+
+message Nested {
+  string label = 1;
+  int32  value = 2;
+}
+
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  RED               = 1;
+  GREEN             = 2;
+  BLUE              = 3;
+}
