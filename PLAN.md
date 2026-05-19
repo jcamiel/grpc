@@ -38,7 +38,9 @@ Python is chosen because the official `grpcio` tooling is simple and the server 
   - well-known types: `Timestamp`, `Duration`, `Any` (at least one)
 - Plaintext endpoint on a fixed port.
 - Optional TLS endpoint (self-signed) so we can exercise the TLS path too.
-- Server reflection enabled, so we can later compare a `.proto`-driven flow against a reflection-driven flow.
+- Server reflection enabled — **only** so other clients in the survey (grpcurl, evans, Postman, etc.) can introspect
+  the schema without a local `.proto`. Hurl itself will **not** consume reflection (see §3 / §4): we want gRPC
+  schemas to come from local files, not from the server.
 
 **Deliverable**: `server/` with a `make run` (or `python -m server`) entry point and a fixed port, plus a `proto/`
 directory with the `.proto` files. Should be one-command-to-run from a clean checkout.
@@ -97,7 +99,7 @@ runnable-looking `.hurl` files in `samples/`, plus a rationale.
 ~~~hurl
 POST localhost:50051/helloworld.Greeter/SayHello
 [Options]
-proto: proto/helloworld.proto
+protoset: proto/helloworld.pb
 ```protobuf
 {
   "name": "World"
@@ -108,6 +110,10 @@ HTTP 200
 header "grpc-status" toInt == 0
 jsonpath "$.message" == "Hello, World"
 ~~~
+
+The `protoset` value is the path to a compiled `FileDescriptorSet` produced by `protoc --descriptor_set_out=...` —
+this is the v1 schema source (see §4 and §6.4). A future `proto:` option will accept raw `.proto` files once the
+text-grammar parser is in.
 
 - Pros: no new verb and no `grpc: true` flag — the `` ```protobuf `` fence is the one and only signal that this body
   gets serialized to protobuf wire bytes and the entry is gRPC. The fence labels *what goes on the wire*, which is
@@ -136,8 +142,12 @@ jsonpath "$.message" == "Hello, World"
 
 **Cross-cutting design decisions to settle**
 
-- **Schema source** — `[Options] proto: ...` per request? a CLI `--proto`? `--proto-path` for imports? `--reflection`
-  to skip `.proto` entirely?
+- **Schema source** — two file-based inputs, no reflection:
+  - `--protoset <path>` / `[Options] protoset: ...` — a compiled `FileDescriptorSet` (`protoc --descriptor_set_out`).
+    This is the v1 path.
+  - `--proto <path>` / `[Options] proto: ...` and `--proto-path <dir>` for imports — raw `.proto` files. Deferred
+    until the text-grammar parser exists (§6.4).
+  - **Out of scope:** server reflection. Hurl never asks the server for its schema.
 - **Metadata** — gRPC metadata is HTTP/2 headers. Reuse Hurl's existing header section, but document the `grpc-`
   reserved names.
 - **Trailers & status** — `grpc-status`, `grpc-message`, and `grpc-status-details-bin` arrive as HTTP/2 trailers. If
@@ -164,19 +174,31 @@ With Candidate A, the `` ```protobuf `` body fence is the only signal that an en
 `--grpc` flag, a per-request `grpc: true` option, or a `--grpc-format` switch. The remaining options are all about
 *where the schema comes from* and a small bit of HTTP/2 plumbing.
 
+**v1 (now)** — descriptor-set path only:
+
+- `--protoset <path>` — a compiled `FileDescriptorSet` (output of `protoc --descriptor_set_out=...`). Decodes with
+  our own protobuf wire-format decoder, so it sidesteps the `.proto` text-grammar parser.
+- Per-request `[Options]`:
+  - `protoset: <path>` (overrides / supplements CLI `--protoset`)
+  - `grpc-authority: <host>` (override `:authority`)
+
+**Deferred** — `.proto` text path (turned on once §6.4 lands):
+
 - `--proto <path>` — single `.proto` file.
 - `--proto-path <dir>` — repeatable, like protoc's `-I`.
-- `--reflection` — use server reflection instead of local `.proto`.
-- Per-request `[Options]`:
-  - `proto: <path>` (overrides / supplements CLI `--proto`)
-  - `grpc-authority: <host>` (override `:authority`)
+- Per-request `[Options] proto: <path>`.
+
+**Explicitly excluded** — `--reflection` and any server-driven schema lookup. Hurl never asks the server for its
+schema. Users supply a `.protoset` (v1) or a `.proto` (later); see §3 for the rationale.
 
 **Open questions**
 
-- If an entry has a `` ```protobuf `` body but no `--proto` / `proto:` / `--reflection` is provided, do we error or
-  attempt reflection by default? Probably error — too easy to silently hit the wrong server otherwise.
-- How do we discover the service/method when only `--reflection` is given? The URL still names the method, but we
-  need the schema to transcode the body.
+- If an entry has a `` ```protobuf `` body but no `--protoset` / `protoset:` (and no `--proto` later) is provided, do
+  we error? Yes — there's no fallback, since we won't do reflection.
+- Precedence when both CLI and per-request are given, or when both `protoset:` and `proto:` resolve a method: probably
+  per-request beats CLI, and `protoset:` beats `proto:` (more authoritative — already through `protoc`).
+- Do we accept multiple `--protoset` flags (merging several descriptor sets)? Probably yes; it's how protoc-generated
+  artifacts compose.
 
 ---
 
@@ -263,46 +285,43 @@ Python server.
   approach gives better errors and JSON conversion; the schemaless one is smaller but pushes work onto the query
   layer.
 
-### 6.4 `.proto` file parsing
+### 6.4 Schema source — `.protoset` first, `.proto` text later
 
-This is the biggest unknown. We need to parse enough of the proto3 grammar to:
+The schema can come from one of two file-based inputs. v1 only tackles the first.
 
-- Resolve `service` blocks → list of methods with input/output type names.
-- Resolve `message` blocks → field number, name, type, label, `oneof`, `map`.
-- Resolve `enum` blocks.
-- Follow `import` statements across `--proto-path` directories.
-- Handle the standard well-known types we care about (`Timestamp`, `Duration`, `Any`, `Empty`, `Struct` at minimum).
+**v1: descriptor sets (`--protoset`)**
 
-**Realistic scope for v1**
+A `protoset` (also called a `FileDescriptorSet`) is the binary output of
+`protoc --descriptor_set_out=foo.pb --include_imports proto/foo.proto`. It's literally a serialized protobuf message
+defined by Google's `descriptor.proto`. Decoding it requires:
 
-- proto3 only.
-- No `extend` (proto2-only anyway).
-- No custom options / no `option (...)` evaluation beyond ignoring them.
-- We still need to *parse* the `stream` keyword on RPCs (so `.proto` files containing streaming methods don't fail to
-  load), but we **reject** streaming methods at call time with a clear error.
+- The protobuf wire-format decoder from §6.3 (which we have to write anyway).
+- A hard-coded view of `descriptor.proto` (or a *bootstrapped* one: the descriptor of `descriptor.proto` itself, in a
+  small precomputed table) so we know which field numbers mean `service`, `method`, `field`, `type`, `label`, etc.
 
-**Open questions**
+That's it. No text parsing, no `import` resolution at our end (protoc already did it), no well-known-type plumbing
+(the descriptors carry everything inline). It's the cheapest possible path to a working schema layer.
 
-- Do we hand-write a recursive-descent parser, or write a tiny generic tokenizer + parser combinator? Hand-written is
-  probably less code overall.
-- Do we accept *descriptor sets* (`protoc -o file.pb`) as an alternative input? Parsing a `FileDescriptorSet` is just
-  protobuf decoding (which we already have) and sidesteps `.proto` text parsing. **This might be the right v1.**
+**Deferred: `.proto` text parsing**
 
-### 6.5 Server reflection
+Once `--protoset` is solid, we add `--proto` for users who want to point at a raw `.proto`. That parser has to handle:
 
-The gRPC server reflection protocol is itself a gRPC service. Once 6.1–6.4 work, reflection is "free" in the sense
-that we already have all the machinery. But it pulls in a fixed `.proto` (`grpc.reflection.v1.ServerReflection`) that
-we'd need to either bundle as text or as a precomputed descriptor.
+- `service` blocks → list of methods with input/output type names.
+- `message` blocks → field number, name, type, label, `oneof`, `map`.
+- `enum` blocks.
+- `import` statements across `--proto-path` directories.
+- Well-known types (`Timestamp`, `Duration`, `Any`, `Empty`, `Struct` at minimum).
 
-Reflection's own RPCs are streaming in the official `.proto`, but for unary schema lookup we can issue a single
-request/response in practice. If that turns out to require true bidi support, reflection slips to a later phase.
+Realistic scope when we get there: proto3 only, no `extend`, options ignored, `stream` keyword parsed but streaming
+methods rejected at call time.
 
 **Open questions**
 
-- v1 with `.proto` only, reflection deferred?
-- Or v1 with reflection only (no `.proto` parsing!) — leaning on descriptor decoding, which we have to write anyway?
-  This could be a *very* small v1.
-- Is the reflection service usable as effectively-unary, or does it really need bidi?
+- Do we ship a bundled descriptor for `descriptor.proto` to bootstrap, or hand-write the decoder for the small set of
+  fields we actually read?
+- Do we accept multiple `--protoset` flags (merging several descriptor sets)?
+- For the deferred `.proto` parser: hand-written recursive descent, or a tiny tokenizer + combinator? Probably
+  hand-written — less code overall.
 
 ---
 
@@ -317,14 +336,14 @@ Roughly in this order, each stage gated on the previous one:
    parsing yet — hard-coded message shape.
 4. **gRPC framing + libcurl trailers** — verify the transport story end to end with the hard-coded message, unary
    only.
-5. **Descriptor-set decoder** — parse a `protoc`-produced `.pb` file using our own protobuf decoder. This gives us a
-   full schema without writing a `.proto` parser yet.
+5. **Descriptor-set decoder (`--protoset`)** — parse a `protoc`-produced `.pb` file using our own protobuf decoder.
+   This is the v1 schema source (see §6.4) and lets us skip the `.proto` text parser entirely for now.
 6. **Hurl syntax v0** — wire up Candidate A (POST + fenced `` ```protobuf `` body) in a Hurl branch, run the sample
-   `.hurl` files in `samples/` against the Python server.
-7. **`.proto` text parser** — only if descriptor-sets aren't enough.
-8. **Server reflection** — optional, once everything else works (and only if we can drive it without true bidi
-   streaming).
-9. **Compression, well-known types, polish**.
+   `.hurl` files in `samples/` against the Python server, using `--protoset` for the schema.
+7. **`.proto` text parser (`--proto`)** — deferred follow-up once v1 is solid.
+8. **Compression, well-known types, polish**.
+
+Reflection (client side) is **not** on this list — see §3 / §4 for the rationale.
 
 Streaming (server / client / bidi) is **not** on this list. It's a follow-up phase once unary is solid.
 
@@ -334,6 +353,10 @@ Streaming (server / client / bidi) is **not** on this list. It's a follow-up pha
 
 - **Risk: libcurl trailers** — if we can't read HTTP/2 trailers from libcurl, v1 is in trouble. Investigate first,
   before writing any protobuf code.
-- **Risk: `.proto` parser scope creep** — mitigated by accepting descriptor sets as the primary input.
+- **Risk: `.proto` parser scope creep** — mitigated by making `--protoset` the v1 schema source and deferring the
+  `.proto` text parser entirely (see §6.4 and §7).
+- **Risk: protoset friction** — `.protoset` files must be regenerated whenever the `.proto` changes (a
+  `protoc --descriptor_set_out` step). For our reference server we'll wire this into a Makefile target; for end-user
+  ergonomics we should document it clearly in the eventual Hurl docs.
 - **Exit ramp** — if any of 6.1–6.4 turns out to need substantially more code than expected, we revisit the
   no-third-party-crates constraint with concrete numbers (lines of code, maintenance cost) rather than as a principle.

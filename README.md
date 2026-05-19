@@ -11,14 +11,24 @@ answer the open design questions before the work lands in `hurl`.
 + one optional response per entry). Server-streaming, client-streaming, and bidirectional streaming are explicitly out
 of scope for this POC. We can revisit streaming once unary lands and we have a feel for the syntax and output format.
 
+**Schema from local files, not reflection.** Hurl is file-oriented and doesn't have a UI for discovering services or
+methods — users name the method explicitly in the `.hurl` file. Server reflection adds discovery and schema lookup,
+but the discovery half is moot for us and the schema half duplicates what local `.proto` / `.protoset` files already
+provide. So **client-side server reflection is out of scope.** (The Python reference server keeps reflection enabled
+for the benefit of other clients during the survey phase — it just isn't a code path we'll implement in Hurl.)
+
+**Compiled descriptor sets first, `.proto` text parser later.** A `--protoset` (a `protoc --descriptor_set_out=...`
+artifact) is just a serialized `FileDescriptorSet`, which decodes with the same protobuf wire-format code we have to
+write anyway. Parsing the `.proto` text grammar is a separate, larger piece of work that we explicitly defer.
+
 ## What we want to figure out
 
 - **Landscape** — How do other HTTP/CLI clients support gRPC today (grpcurl, evans, Postman, Insomnia, BloomRPC, Kreya,
   curl, `buf curl`, etc.)? What works well for *unary* calls, and what should we copy or avoid?
 - **Hurl syntax** — What would a natural Hurl-flavored syntax for a gRPC unary call look like? How do we describe the
   service/method, the request message, the metadata, and the expected response in a `.hurl` file?
-- **Options & CLI flags** — What new request options, asserts, and CLI flags are needed (e.g. `--proto`,
-  `--proto-path`, `--import-path`, `--reflection`, per-request `[Options]` entries)?
+- **Options & CLI flags** — What new request options, asserts, and CLI flags are needed (e.g. `--protoset`, `--proto`,
+  `--proto-path`, per-request `[Options]` entries)?
 - **Protobuf version** — proto2 vs proto3. Which do we target first? How do we handle `Any`, `oneof`, `map`, well-known
   types, optional/required, defaults?
 - **Output** — What should Hurl print when gRPC is enabled? How do we render the response message, trailers, and
