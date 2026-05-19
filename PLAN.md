@@ -99,7 +99,7 @@ runnable-looking `.hurl` files in `samples/`, plus a rationale.
 ~~~hurl
 POST localhost:50051/helloworld.Greeter/SayHello
 [Options]
-protoset: proto/helloworld.pb
+protoset: proto/helloworld.protoset
 ```protobuf
 {
   "name": "World"
@@ -292,8 +292,10 @@ The schema can come from one of two file-based inputs. v1 only tackles the first
 **v1: descriptor sets (`--protoset`)**
 
 A `protoset` (also called a `FileDescriptorSet`) is the binary output of
-`protoc --descriptor_set_out=foo.pb --include_imports proto/foo.proto`. It's literally a serialized protobuf message
-defined by Google's `descriptor.proto`. Decoding it requires:
+`protoc --descriptor_set_out=foo.protoset --include_imports proto/foo.proto`. It's literally a serialized protobuf
+message defined by Google's `descriptor.proto`. The `.protoset` extension is the convention popularized by `grpcurl`
+and other gRPC tooling — it signals "this is a FileDescriptorSet" rather than "some protobuf message". Decoding it
+requires:
 
 - The protobuf wire-format decoder from §6.3 (which we have to write anyway).
 - A hard-coded view of `descriptor.proto` (or a *bootstrapped* one: the descriptor of `descriptor.proto` itself, in a
@@ -336,7 +338,8 @@ Roughly in this order, each stage gated on the previous one:
    parsing yet — hard-coded message shape.
 4. **gRPC framing + libcurl trailers** — verify the transport story end to end with the hard-coded message, unary
    only.
-5. **Descriptor-set decoder (`--protoset`)** — parse a `protoc`-produced `.pb` file using our own protobuf decoder.
+5. **Descriptor-set decoder (`--protoset`)** — parse a `protoc`-produced `.protoset` file using our own protobuf
+   decoder.
    This is the v1 schema source (see §6.4) and lets us skip the `.proto` text parser entirely for now.
 6. **Hurl syntax v0** — wire up Candidate A (POST + fenced `` ```protobuf `` body) in a Hurl branch, run the sample
    `.hurl` files in `samples/` against the Python server, using `--protoset` for the schema.
