@@ -94,13 +94,13 @@ handles unary.
 This is the part that needs the most iteration. The deliverable is one or two candidate syntaxes written up as
 runnable-looking `.hurl` files in `samples/`, plus a rationale.
 
-**Candidate A — POST + fenced `protobuf` body (preferred)**
+**Candidate A — POST + fenced `grpc` body (preferred)**
 
 ~~~hurl
 POST http://localhost:50051/helloworld.Greeter/SayHello
 [Options]
 protoset: proto/helloworld.protoset
-```protobuf
+```grpc
 {
   "name": "World"
 }
@@ -115,9 +115,12 @@ The `protoset` value is the path to a compiled `FileDescriptorSet` produced by `
 this is the v1 schema source (see §4 and §6.4). A future `proto:` option will accept raw `.proto` files once the
 text-grammar parser is in.
 
-- Pros: no new verb and no `grpc: true` flag — the `` ```protobuf `` fence is the one and only signal that this body
-  gets serialized to protobuf wire bytes and the entry is gRPC. The fence labels *what goes on the wire*, which is
-  what a reader actually needs to know. Natural extension point for future body forms (e.g. `` ```prototext ``).
+- Pros: no new verb and no `grpc: true` flag — the `` ```grpc `` fence is the one and only signal that this entry
+  uses gRPC framing (5-byte length-prefix + protobuf bytes) and expects HTTP/2 trailers for the status. The fence
+  labels *the wire protocol*, which is what a reader actually needs to know — not just the body encoding (a body of
+  protobuf bytes could equally be a Connect or plain-HTTP request). The body content inside is JSON-shaped text,
+  which Hurl transcodes to protobuf via the resolved schema. Natural extension point for future protocol siblings
+  (e.g. `` ```connect ``, `` ```grpc-web ``).
 - Cons: the entry's source diverges slightly from a plain HTTP POST (the fence is mandatory); requires Hurl to learn
   that a fenced-language body can drive transport behavior.
 
@@ -158,7 +161,7 @@ jsonpath "$.message" == "Hello, World"
   libcurl surfaces trailers in the same channel as response headers (see §6.1), we do **not** need new query types
   for them — Hurl's existing `header "<name>"` query (combined with filters like `toInt`) handles all three:
   `header "grpc-status" toInt == 0`, `header "grpc-message" contains "..."`, etc.
-- **Response body in asserts** — Symmetric with the request: a `` ```protobuf `` block in the response section, with
+- **Response body in asserts** — Symmetric with the request: a `` ```grpc `` block in the response section, with
   expected JSON-shaped content inside, decoded by Hurl before assertions run. `jsonpath` queries then operate on the
   decoded view. (Open: do we also want a `protopath` query type, or is JSON enough?)
 
@@ -173,7 +176,7 @@ jsonpath "$.message" == "Hello, World"
 
 ## 4. Options and CLI flags
 
-With Candidate A, the `` ```protobuf `` body fence is the only signal that an entry is gRPC, so we **don't** need a
+With Candidate A, the `` ```grpc `` body fence is the only signal that an entry is gRPC, so we **don't** need a
 `--grpc` flag, a per-request `grpc: true` option, or a `--grpc-format` switch. The remaining options are all about
 *where the schema comes from* and a small bit of HTTP/2 plumbing.
 
@@ -196,7 +199,7 @@ schema. Users supply a `.protoset` (v1) or a `.proto` (later); see §3 for the r
 
 **Open questions**
 
-- If an entry has a `` ```protobuf `` body but no `--protoset` / `protoset:` (and no `--proto` later) is provided, do
+- If an entry has a `` ```grpc `` body but no `--protoset` / `protoset:` (and no `--proto` later) is provided, do
   we error? Yes — there's no fallback, since we won't do reflection.
 - Precedence when both CLI and per-request are given, or when both `protoset:` and `proto:` resolve a method: probably
   per-request beats CLI, and `protoset:` beats `proto:` (more authoritative — already through `protoc`).
@@ -344,7 +347,7 @@ Roughly in this order, each stage gated on the previous one:
 5. **Descriptor-set decoder (`--protoset`)** — parse a `protoc`-produced `.protoset` file using our own protobuf
    decoder.
    This is the v1 schema source (see §6.4) and lets us skip the `.proto` text parser entirely for now.
-6. **Hurl syntax v0** — wire up Candidate A (POST + fenced `` ```protobuf `` body) in a Hurl branch, run the sample
+6. **Hurl syntax v0** — wire up Candidate A (POST + fenced `` ```grpc `` body) in a Hurl branch, run the sample
    `.hurl` files in `samples/` against the Python server, using `--protoset` for the schema.
 7. **`.proto` text parser (`--proto`)** — deferred follow-up once v1 is solid.
 8. **Compression, well-known types, polish**.
