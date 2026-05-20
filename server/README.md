@@ -61,6 +61,28 @@ package.
 
 This writes `*_pb2.py` and `*_pb2_grpc.py` under `server/_generated/`. Re-run it any time the `.proto` files change.
 
+### 4. Generate the `.protoset` files (descriptor sets)
+
+A `.protoset` is the binary output of `protoc --descriptor_set_out=...` — a serialized `FileDescriptorSet`. It's the
+schema source Hurl will consume (see [`../PLAN.md`](../PLAN.md) §6.4). One `.protoset` is generated per service so
+that `.hurl` test files can reference just the schema they need:
+
+```sh
+for p in helloworld echo status; do
+  .venv/bin/python -m grpc_tools.protoc \
+    -Iproto \
+    --descriptor_set_out=proto/$p.protoset \
+    --include_imports \
+    proto/$p.proto
+done
+```
+
+`--include_imports` makes each `.protoset` self-contained — `echo.protoset` therefore bundles its `google.protobuf`
+well-known-type dependencies (`Timestamp`, `Duration`, `Any`) inline.
+
+This writes `proto/helloworld.protoset`, `proto/echo.protoset`, `proto/status.protoset`. Re-run any time the matching
+`.proto` files change.
+
 ## Running the server
 
 ```sh
