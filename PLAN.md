@@ -97,7 +97,7 @@ runnable-looking `.hurl` files in `samples/`, plus a rationale.
 **Candidate A — POST + fenced `protobuf` body (preferred)**
 
 ~~~hurl
-POST localhost:50051/helloworld.Greeter/SayHello
+POST http://localhost:50051/helloworld.Greeter/SayHello
 [Options]
 protoset: proto/helloworld.protoset
 ```protobuf
@@ -124,7 +124,7 @@ text-grammar parser is in.
 **Candidate B — dedicated `GRPC` verb**
 
 ```hurl
-GRPC localhost:50051/helloworld.Greeter/SayHello
+GRPC http://localhost:50051/helloworld.Greeter/SayHello
 grpc-timeout: 5S
 authorization: Bearer xyz
 {
@@ -142,6 +142,10 @@ jsonpath "$.message" == "Hello, World"
 
 **Cross-cutting design decisions to settle**
 
+- **URL scheme** — Always written as `http://` (plaintext) or `https://` (TLS), matching the `:scheme` pseudo-header
+  in the [gRPC-over-HTTP/2 spec](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md). The scheme is the
+  TLS switch — no `GRPCS` keyword, no `--grpc-tls` flag. Surfacing it in the URL also makes it visible that gRPC is
+  HTTP under the hood, which is the whole point of Candidate A.
 - **Schema source** — two file-based inputs, no reflection:
   - `--protoset <path>` / `[Options] protoset: ...` — a compiled `FileDescriptorSet` (`protoc --descriptor_set_out`).
     This is the v1 path.
@@ -162,7 +166,6 @@ jsonpath "$.message" == "Hello, World"
 
 - Do we ever need Candidate B at all? Candidate A handles everything via the fenced body; Candidate B would only earn
   its keep if we discover something gRPC-specific that doesn't fit in `[Options]` or in the headers.
-- Do we want `GRPCS` / TLS handling via URL scheme, or always rely on a CLI flag / option?
 - Do we need any new query types at all? Trailers reuse `header`, response messages reuse `jsonpath` on the decoded
   view — a dedicated `protopath` would only be worth it if `jsonpath` can't express something we care about.
 
