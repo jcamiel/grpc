@@ -29,7 +29,6 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    println!("read {} bytes from {}", bytes.len(), args.protoset.display());
 
     match protoset::decode(&bytes) {
         Ok(fds) => {
