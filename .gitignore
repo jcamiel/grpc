@@ -11,3 +11,6 @@ __pycache__/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Rust
+client/target/

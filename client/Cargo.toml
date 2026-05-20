@@ -1,0 +1,9 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Argument parsing only — explicitly **not** a protobuf/gRPC crate, so it doesn't
+# breach the "no third-party gRPC or protobuf crate" constraint (see ../PLAN.md).
+clap = { version = "4", features = ["derive"] }
