@@ -2,7 +2,7 @@
 
 ## grpcurl
 
-Reflection:
+### Reflection:
 
 ```shell
 $ grpcurl -plaintext localhost:50051 list
@@ -19,7 +19,7 @@ $ grpcurl -plaintext -d '{"name": "Bob"}' localhost:50051 helloworld.Greeter/Say
 }
 ```
 
-Response on stdout is JSON.
+### Response on stdout is JSON.
 
 With verbosity:
 
@@ -46,8 +46,17 @@ Response trailers received:
 Sent 1 request and received 1 response
 ```
 
+### Bad body
+
+```shell
+$ grpcurl -plaintext -d '{"foo": "Bob"}' localhost:50051 helloworld.Greeter/SayHello
+Error invoking method "helloworld.Greeter/SayHello": error getting request data: message type helloworld.HelloRequest has no known field named foo
+```
+
+
 
 ## buf curl
+
 
 ```shell
 $ buf curl --data '{"name": "Bob"}' http://localhost:50051/helloworld.Greeter/SayHello
@@ -56,7 +65,7 @@ $ buf curl --data '{"name": "Bob"}' http://localhost:50051/helloworld.Greeter/Sa
 }
 ```
 
-With verbosity:
+### With verbosity:
 
 ```shell
 $ buf curl --debug --protocol grpc --http2-prior-knowledge --data '{"name": "Bob"}' http://localhost:50051/helloworld.Greeter/SayHello
@@ -67,3 +76,9 @@ DEBUG	github.com/bufbuild/buf/private/bufpkg/bufimage.BuildImage	{"duration":"13
 }
 ```
 
+### Error
+
+```shell
+$ buf curl --protocol grpc --http2-prior-knowledge --data '{"foo": "Bob"}' http://localhost:50051/helloworld.Greeter/SayHello 
+Failure: json unmarshal: proto: (line 1:2): unknown field "foo"
+```

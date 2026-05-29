@@ -2,9 +2,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use crate::descriptor::FileDescriptorSet;
 use clap::Parser;
 
-mod protoset;
+mod descriptor;
+mod reader;
 
 /// Rust prototype of the gRPC code paths Hurl will eventually grow.
 ///
@@ -30,7 +32,7 @@ fn main() -> ExitCode {
         }
     };
 
-    match protoset::decode(&bytes) {
+    match FileDescriptorSet::parse(&bytes) {
         Ok(fds) => {
             println!("{:#?}", fds);
             ExitCode::SUCCESS
