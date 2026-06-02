@@ -87,10 +87,16 @@ impl FileDescriptorProto {
     }
 }
 
+/// Describes a message type.
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L132>
 #[derive(Debug, Default)]
-struct DescriptorProto {
+pub struct DescriptorProto {
     name: Option<String>,
     fields: Vec<FieldDescriptorProto>,
+    /// Nested types are used for nested types inside message and map types.
+    nested_types: Vec<DescriptorProto>,
+    // enum_types: Vec<EnumDescriptorProto>,
+    options: Vec<MessageOption>,
 }
 
 impl DescriptorProto {
@@ -99,6 +105,8 @@ impl DescriptorProto {
         let entity = "DescriptorProto";
         let mut name = None;
         let mut fields = Vec::new();
+        let mut nested_types = Vec::new();
+        let mut options = Vec::new();
 
         while !reader.eof() {
             let (field_number, wire_type) = reader.read_key()?;
@@ -114,10 +122,61 @@ impl DescriptorProto {
                     let field = FieldDescriptorProto::parse(bytes)?;
                     fields.push(field);
                 }
+                3 => {
+                    check_wire_type(entity, "nested_type", WireType::Len, wire_type)?;
+                    let bytes = reader.read_len_delimited()?;
+                    let message_type = DescriptorProto::parse(bytes)?;
+                    nested_types.push(message_type);
+                }
+                7 => {
+                    check_wire_type(entity, "options", WireType::Len, wire_type)?;
+                    let bytes = reader.read_len_delimited()?;
+                    let option = MessageOption::parse(bytes)?;
+                    options.push(option);
+                }
                 _ => reader.skip(wire_type)?,
             }
         }
-        Ok(DescriptorProto { name, fields })
+        Ok(DescriptorProto {
+            name,
+            fields,
+            nested_types,
+            options,
+        })
+    }
+}
+
+/// Describes an enum type.
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L339>
+#[derive(Debug, Default)]
+struct EnumDescriptorProto {}
+
+/// Describes option of a message type.
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L581>
+#[derive(Debug, Default)]
+struct MessageOption {
+    /// Whether the message is an automatically generated map entry type for the maps field.
+    map_entry: Option<bool>,
+}
+
+impl MessageOption {
+    fn parse(bytes: &[u8]) -> Result<MessageOption, ReaderError> {
+        let mut reader = Reader::new(bytes);
+        let entity = "MessageOption";
+        let mut map_entry = None;
+
+        while !reader.eof() {
+            let (field_number, wire_type) = reader.read_key()?;
+            match field_number {
+                7 => {
+                    check_wire_type(entity, "map_entry", WireType::VarInt, wire_type)?;
+                    let value = reader.read_bool()?;
+                    map_entry = Some(value);
+                }
+                _ => reader.skip(wire_type)?,
+            }
+        }
+        Ok(MessageOption { map_entry })
     }
 }
 

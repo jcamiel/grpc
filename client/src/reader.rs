@@ -14,8 +14,11 @@ pub enum ReaderError {
         expected_wire_type: WireType,
         actual_wire_type: WireType,
     },
+    /// Try to read a bool but read neither `0` nor `1`
+    InvalidBool,
     InvalidInt32,
     InvalidUtf8Bytes,
+
     InvalidWireType {
         wire_type: u8,
     },
@@ -43,6 +46,7 @@ impl fmt::Display for ReaderError {
                 f,
                 "Invalid field {entity}:{field} expected {expected_wire_type}, actual {actual_wire_type}"
             ),
+            ReaderError::InvalidBool => write!(f, "ReaderError::InvalidBool"),
             ReaderError::InvalidInt32 => write!(f, "ReaderError::InvalidInt32"),
             ReaderError::InvalidUtf8Bytes => write!(f, "ReaderError::InvalidUtf8Bytes"),
             ReaderError::InvalidWireType { .. } => write!(f, "ReaderError::InvalidWireType"),
@@ -200,5 +204,14 @@ impl<'input> Reader<'input> {
     pub fn read_string(&mut self) -> Result<String, ReaderError> {
         let bytes = self.read_len_delimited()?;
         String::from_utf8(bytes.to_vec()).map_err(|_| ReaderError::InvalidUtf8Bytes)
+    }
+
+    pub fn read_bool(&mut self) -> Result<bool, ReaderError> {
+        let value = self.read_varint()?;
+        match value {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(ReaderError::InvalidBool),
+        }
     }
 }
