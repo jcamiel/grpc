@@ -1,7 +1,13 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-/// Errors returned by [`decode`].
+/// A wire-format protobuf reader. This reader works on wire level, and has no notion of schema.
+pub struct Reader<'input> {
+    input: &'input [u8],
+    pos: BytePos,
+}
+
+/// Errors returned by a reader.
 #[derive(Debug)]
 pub enum ReaderError {
     /// Unexpected end of file.
@@ -18,23 +24,26 @@ pub enum ReaderError {
     InvalidBool,
     InvalidInt32,
     InvalidUtf8Bytes,
-
+    InvalidVarInt,
     InvalidWireType {
         wire_type: u8,
     },
-    /// Data is valid protobug bytes but not supported for the moment.
+    /// Data is valid protobuf bytes but not supported for the moment.
     LegacyWireType {
         wire_type: WireType,
     },
     UnsupportedSyntax {
         syntax: String,
     },
+    /// The reader is asks to read more bytes than there are.
+    BufferOverflow,
     Generic,
 }
 
 impl fmt::Display for ReaderError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            ReaderError::BufferOverflow => write!(f, "ReaderError::BufferOverflow"),
             ReaderError::Eof => write!(f, "ReaderError::Eof"),
             ReaderError::InvalidFieldNumber => write!(f, "ReaderError::InvalidFieldNumber"),
             ReaderError::InvalidField {
@@ -49,6 +58,7 @@ impl fmt::Display for ReaderError {
             ReaderError::InvalidBool => write!(f, "ReaderError::InvalidBool"),
             ReaderError::InvalidInt32 => write!(f, "ReaderError::InvalidInt32"),
             ReaderError::InvalidUtf8Bytes => write!(f, "ReaderError::InvalidUtf8Bytes"),
+            ReaderError::InvalidVarInt => write!(f, "ReaderError::VarInt"),
             ReaderError::InvalidWireType { .. } => write!(f, "ReaderError::InvalidWireType"),
             ReaderError::LegacyWireType { .. } => write!(f, "ReaderError::LegacyWireType"),
             ReaderError::UnsupportedSyntax { .. } => write!(f, "ReaderError::UnsupportedSyntax"),
@@ -57,10 +67,6 @@ impl fmt::Display for ReaderError {
     }
 }
 
-pub struct Reader<'input> {
-    input: &'input [u8],
-    pos: BytePos,
-}
 
 /// Represents a wire type (the type part of a record value)
 /// From <https://protobuf.dev/programming-guides/encoding>
@@ -113,8 +119,11 @@ impl fmt::Display for WireType {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct BytePos(usize);
 
+/// Max protobuf field number — `2^29 - 1`. See encoding spec.
+const MAX_FIELD_NUMBER: u64 = (1 << 29) - 1;
+
 impl<'input> Reader<'input> {
-    /// Creates a new decoder, with `input`.
+    /// Creates a new reader, with `input`.
     pub fn new(input: &'input [u8]) -> Self {
         Reader {
             input,
@@ -130,10 +139,10 @@ impl<'input> Reader<'input> {
     }
 
     /// Reads the next n bytes and advances the read position.
-    fn read_bytes(&mut self, n: usize) -> &[u8] {
+    fn read_bytes(&mut self, n: usize) -> Result<&[u8], ReaderError> {
         let start = self.pos.0;
-        self.pos.0 += n;
-        &self.input[start..start + n]
+        self.advance(n)?;
+        Ok(&self.input[start..start + n])
     }
 
     /// Reads a varint
@@ -151,22 +160,29 @@ impl<'input> Reader<'input> {
                 break;
             }
             shift += 7;
+            // A valid protobuf varint is at most 10 bytes (64 bits / 7 bits per byte, rounded up)
+            if shift >= 7 * 10 {
+                return Err(ReaderError::InvalidVarInt);
+            }
         }
 
         Ok(result)
     }
 
-    /// Reads an int32 protobuf (unsigned).
-    pub fn read_int32(&mut self) -> Result<u32, ReaderError> {
+    /// Reads an unsigned int32 protobuf.
+    pub fn read_uint32(&mut self) -> Result<u32, ReaderError> {
         let value = self.read_varint()?;
         u32::try_from(value).map_err(|_| ReaderError::InvalidInt32)
     }
 
-    /// Reads a key.
-    pub fn read_key(&mut self) -> Result<(u32, WireType), ReaderError> {
+    /// Reads a tag.
+    ///
+    /// The protobuf spec calls `field_number << 3 | wire_type` a "tag".
+    /// See <https://protobuf.dev/programming-guides/encoding#structure>
+    pub fn read_tag(&mut self) -> Result<(u32, WireType), ReaderError> {
         let key = self.read_varint()?;
         let field_number = key >> 3;
-        if field_number == 0 || field_number > 0x1FFF_FFFF {
+        if field_number == 0 || field_number > MAX_FIELD_NUMBER {
             return Err(ReaderError::InvalidFieldNumber);
         }
         let field_number = field_number as u32;
@@ -176,7 +192,8 @@ impl<'input> Reader<'input> {
 
     pub fn read_len_delimited(&mut self) -> Result<&[u8], ReaderError> {
         let len = self.read_varint()? as usize;
-        Ok(self.read_bytes(len))
+        let bytes = self.read_bytes(len)?;
+        Ok(bytes)
     }
 
     pub fn eof(&self) -> bool {
@@ -189,13 +206,15 @@ impl<'input> Reader<'input> {
                 self.read_varint()?;
             }
             WireType::I64 => {
-                self.pos.0 += 8;
+                self.advance(8)?;
             }
             WireType::Len => {
                 let len = self.read_varint()? as usize;
-                self.pos.0 += len;
+                self.advance(len)?;
             }
-            WireType::I32 => self.pos.0 += 4,
+            WireType::I32 => {
+                self.advance(4)?;
+            }
             _ => return Err(ReaderError::LegacyWireType { wire_type }),
         }
         Ok(())
@@ -203,7 +222,9 @@ impl<'input> Reader<'input> {
 
     pub fn read_string(&mut self) -> Result<String, ReaderError> {
         let bytes = self.read_len_delimited()?;
-        String::from_utf8(bytes.to_vec()).map_err(|_| ReaderError::InvalidUtf8Bytes)
+        std::str::from_utf8(bytes)
+            .map(str::to_owned)
+            .map_err(|_| ReaderError::InvalidUtf8Bytes)
     }
 
     pub fn read_bool(&mut self) -> Result<bool, ReaderError> {
@@ -213,5 +234,14 @@ impl<'input> Reader<'input> {
             1 => Ok(true),
             _ => Err(ReaderError::InvalidBool),
         }
+    }
+
+    /// Advances the reader position safely from `n` bytes.
+    fn advance(&mut self, n: usize) -> Result<(), ReaderError> {
+        if self.pos.0 + n > self.input.len() {
+            return Err(ReaderError::BufferOverflow);
+        }
+        self.pos.0 += n;
+        Ok(())
     }
 }

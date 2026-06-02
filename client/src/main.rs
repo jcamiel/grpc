@@ -11,7 +11,7 @@ mod reader;
 /// Rust prototype of the gRPC code paths Hurl will eventually grow.
 ///
 /// At this stage the only thing the binary does is load a `.protoset` file
-/// and hand its bytes to the decoder entry point in [`protoset`].
+/// and hand its bytes to the decoder entry point in [`reader`].
 #[derive(Parser, Debug)]
 #[command(name = "client", version, about, long_about = None)]
 struct Args {

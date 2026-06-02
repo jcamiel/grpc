@@ -3,7 +3,6 @@ use std::fmt;
 use std::fmt::Formatter;
 
 /// A decoded `google.protobuf.FileDescriptorSet`.
-/// See <https://protobuf.com/docs/descriptors#descriptor-production>
 /// See <https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/descriptor.proto>
 #[derive(Debug, Default)]
 pub struct FileDescriptorSet {
@@ -18,7 +17,7 @@ impl FileDescriptorSet {
         let mut files = Vec::new();
 
         while !reader.eof() {
-            let (field_number, wire_type) = reader.read_key()?;
+            let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
                     check_wire_type(entity, "file", WireType::Len, wire_type)?;
@@ -51,7 +50,7 @@ impl FileDescriptorProto {
         let mut message_types = Vec::new();
 
         while !reader.eof() {
-            let (field_number, wire_type) = reader.read_key()?;
+            let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
                     check_wire_type(entity, "name", WireType::Len, wire_type)?;
@@ -109,7 +108,7 @@ impl DescriptorProto {
         let mut options = Vec::new();
 
         while !reader.eof() {
-            let (field_number, wire_type) = reader.read_key()?;
+            let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
                     check_wire_type(entity, "name", WireType::Len, wire_type)?;
@@ -166,7 +165,7 @@ impl MessageOption {
         let mut map_entry = None;
 
         while !reader.eof() {
-            let (field_number, wire_type) = reader.read_key()?;
+            let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 7 => {
                     check_wire_type(entity, "map_entry", WireType::VarInt, wire_type)?;
@@ -273,7 +272,7 @@ impl FieldDescriptorProto {
         let mut number = None;
 
         while !reader.eof() {
-            let (field_number, wire_type) = reader.read_key()?;
+            let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
                     check_wire_type(entity, "name", WireType::Len, wire_type)?;
@@ -282,7 +281,7 @@ impl FieldDescriptorProto {
                 }
                 3 => {
                     check_wire_type(entity, "number", WireType::VarInt, wire_type)?;
-                    let value = reader.read_int32()?;
+                    let value = reader.read_uint32()?;
                     number = Some(value);
                 }
                 5 => {
