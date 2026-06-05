@@ -7,6 +7,7 @@ use clap::Parser;
 
 mod descriptor;
 mod reader;
+mod parser;
 
 /// Rust prototype of the gRPC code paths Hurl will eventually grow.
 ///

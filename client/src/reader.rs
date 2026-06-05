@@ -13,13 +13,6 @@ pub enum ReaderError {
     /// Unexpected end of file.
     Eof,
     InvalidFieldNumber,
-    /// Error in parsing field `name` for this `entity`.
-    InvalidField {
-        field: String,
-        entity: String,
-        expected_wire_type: WireType,
-        actual_wire_type: WireType,
-    },
     /// Try to read a bool but read neither `0` nor `1`
     InvalidBool,
     InvalidInt32,
@@ -32,12 +25,8 @@ pub enum ReaderError {
     LegacyWireType {
         wire_type: WireType,
     },
-    UnsupportedSyntax {
-        syntax: String,
-    },
     /// The reader is asks to read more bytes than there are.
     BufferOverflow,
-    Generic,
 }
 
 impl fmt::Display for ReaderError {
@@ -46,27 +35,15 @@ impl fmt::Display for ReaderError {
             ReaderError::BufferOverflow => write!(f, "ReaderError::BufferOverflow"),
             ReaderError::Eof => write!(f, "ReaderError::Eof"),
             ReaderError::InvalidFieldNumber => write!(f, "ReaderError::InvalidFieldNumber"),
-            ReaderError::InvalidField {
-                field,
-                entity,
-                expected_wire_type,
-                actual_wire_type,
-            } => write!(
-                f,
-                "Invalid field {entity}:{field} expected {expected_wire_type}, actual {actual_wire_type}"
-            ),
             ReaderError::InvalidBool => write!(f, "ReaderError::InvalidBool"),
             ReaderError::InvalidInt32 => write!(f, "ReaderError::InvalidInt32"),
             ReaderError::InvalidUtf8Bytes => write!(f, "ReaderError::InvalidUtf8Bytes"),
             ReaderError::InvalidVarInt => write!(f, "ReaderError::VarInt"),
             ReaderError::InvalidWireType { .. } => write!(f, "ReaderError::InvalidWireType"),
             ReaderError::LegacyWireType { .. } => write!(f, "ReaderError::LegacyWireType"),
-            ReaderError::UnsupportedSyntax { .. } => write!(f, "ReaderError::UnsupportedSyntax"),
-            ReaderError::Generic => write!(f, "ReaderError::Generic"),
         }
     }
 }
-
 
 /// Represents a wire type (the type part of a record value)
 /// From <https://protobuf.dev/programming-guides/encoding>
@@ -245,3 +222,4 @@ impl<'input> Reader<'input> {
         Ok(())
     }
 }
+

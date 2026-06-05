@@ -64,6 +64,20 @@ message Payload {
   // --- well-known types ---
   google.protobuf.Duration duration  = 23;
   google.protobuf.Any      any_field = 24;
+
+  // --- message-level (nested) enum ---
+  enum Priority {
+    PRIORITY_UNSPECIFIED = 0;
+    LOW                  = 1;
+    MEDIUM               = 2;
+    HIGH                 = 3;
+  }
+  Priority priority = 25;
+
+  // --- explicit presence (proto3 `optional`) ---
+  // Generates a synthetic `oneof` in the descriptor and sets
+  // `FieldDescriptorProto.proto3_optional = true`.
+  optional string nickname = 26;
 }
 
 message Nested {
