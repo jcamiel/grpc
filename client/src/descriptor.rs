@@ -99,7 +99,8 @@ pub struct DescriptorProto {
     nested_types: Vec<DescriptorProto>,
     /// All enums nested within this message definition.
     enum_types: Vec<EnumDescriptorProto>,
-    options: Vec<MessageOption>,
+    oneof_decls: Vec<OneOfDescriptorProto>,
+    options: Option<MessageOptions>,
 }
 
 impl DescriptorProto {
@@ -110,7 +111,8 @@ impl DescriptorProto {
         let mut fields = Vec::new();
         let mut nested_types = Vec::new();
         let mut enum_types = Vec::new();
-        let mut options = Vec::new();
+        let mut oneof_decls = Vec::new();
+        let mut options = None;
 
         while !reader.eof() {
             let (field_number, wire_type) = reader.read_tag()?;
@@ -136,8 +138,13 @@ impl DescriptorProto {
                 }
                 7 => {
                     let bytes = parser::message("options", entity, &mut reader, wire_type)?;
-                    let option = MessageOption::parse(bytes)?;
-                    options.push(option);
+                    let value = MessageOptions::parse(bytes)?;
+                    options = Some(value);
+                }
+                8 => {
+                    let bytes = parser::message("oneof_decl", entity, &mut reader, wire_type)?;
+                    let oneof_decl = OneOfDescriptorProto::parse(bytes)?;
+                    oneof_decls.push(oneof_decl);
                 }
                 _ => reader.skip(wire_type)?,
             }
@@ -147,116 +154,9 @@ impl DescriptorProto {
             fields,
             nested_types,
             enum_types,
+            oneof_decls,
             options,
         })
-    }
-}
-
-/// Describes an enum type.
-///
-/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L339>
-#[derive(Debug, Default)]
-struct EnumDescriptorProto {
-    name: Option<String>,
-    values: Vec<EnumValueDescriptorProto>,
-}
-
-impl EnumDescriptorProto {
-    fn parse(bytes: &[u8]) -> Result<EnumDescriptorProto, ParserError> {
-        let mut reader = Reader::new(bytes);
-        let entity = "EnumDescriptorProto";
-        let mut name = None;
-        let mut values = Vec::new();
-
-        while !reader.eof() {
-            let (field_number, wire_type) = reader.read_tag()?;
-            match field_number {
-                1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
-                    name = Some(str);
-                }
-                2 => {
-                    let bytes = parser::message("value", entity, &mut reader, wire_type)?;
-                    let value = EnumValueDescriptorProto::parse(bytes)?;
-                    values.push(value);
-                }
-                _ => reader.skip(wire_type)?,
-            }
-        }
-        Ok(EnumDescriptorProto {
-            name,
-            values,
-        })
-    }
-}
-
-
-/// Describes a value within an enum.
-///
-/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L388>
-#[derive(Debug, Default)]
-struct EnumValueDescriptorProto {
-    name: Option<String>,
-    number: Option<u32>,
-}
-
-impl EnumValueDescriptorProto {
-    fn parse(bytes: &[u8]) -> Result<EnumValueDescriptorProto, ParserError> {
-        let mut reader = Reader::new(bytes);
-        let entity = "EnumValueDescriptorProto";
-        let mut name = None;
-        let mut number = None;
-
-        while !reader.eof() {
-            let (field_number, wire_type) = reader.read_tag()?;
-            match field_number {
-                1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
-                    name = Some(str);
-                }
-                2 => {
-                    let value = parser::uint32("number", entity, &mut reader, wire_type)?;
-                    number = Some(value);
-                }
-                _ => reader.skip(wire_type)?,
-            }
-        }
-        Ok(EnumValueDescriptorProto {
-            name,
-            number,
-        })
-    }
-}
-
-
-
-
-/// Describes option of a message type.
-///
-/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L581>
-#[derive(Debug, Default)]
-struct MessageOption {
-    /// Whether the message is an automatically generated map entry type for the maps field.
-    map_entry: Option<bool>,
-}
-
-impl MessageOption {
-    fn parse(bytes: &[u8]) -> Result<MessageOption, ParserError> {
-        let mut reader = Reader::new(bytes);
-        let entity = "MessageOption";
-        let mut map_entry = None;
-
-        while !reader.eof() {
-            let (field_number, wire_type) = reader.read_tag()?;
-            match field_number {
-                7 => {
-                    let value = parser::bool("map_entry", entity, &mut reader, wire_type)?;
-                    map_entry = Some(value);
-                }
-                _ => reader.skip(wire_type)?,
-            }
-        }
-        Ok(MessageOption { map_entry })
     }
 }
 
@@ -266,9 +166,9 @@ impl MessageOption {
 #[derive(Debug, Default)]
 struct FieldDescriptorProto {
     name: Option<String>,
+    number: Option<u32>,
     r#type: Option<FieldType>,
     type_name: Option<String>,
-    number: Option<u32>,
     oneof_index: Option<u32>,
     proto3_optional: Option<bool>,
 }
@@ -419,6 +319,141 @@ impl FieldDescriptorProto {
             oneof_index,
             proto3_optional,
         })
+    }
+}
+
+/// Describes an enum type.
+///
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L339>
+#[derive(Debug, Default)]
+struct EnumDescriptorProto {
+    name: Option<String>,
+    values: Vec<EnumValueDescriptorProto>,
+}
+
+impl EnumDescriptorProto {
+    fn parse(bytes: &[u8]) -> Result<EnumDescriptorProto, ParserError> {
+        let mut reader = Reader::new(bytes);
+        let entity = "EnumDescriptorProto";
+        let mut name = None;
+        let mut values = Vec::new();
+
+        while !reader.eof() {
+            let (field_number, wire_type) = reader.read_tag()?;
+            match field_number {
+                1 => {
+                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    name = Some(str);
+                }
+                2 => {
+                    let bytes = parser::message("value", entity, &mut reader, wire_type)?;
+                    let value = EnumValueDescriptorProto::parse(bytes)?;
+                    values.push(value);
+                }
+                _ => reader.skip(wire_type)?,
+            }
+        }
+        Ok(EnumDescriptorProto {
+            name,
+            values,
+        })
+    }
+}
+
+/// Describes a oneof.
+///
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L349>
+#[derive(Debug, Default)]
+struct OneOfDescriptorProto {
+    name: Option<String>,
+}
+
+impl OneOfDescriptorProto {
+    fn parse(bytes: &[u8]) -> Result<OneOfDescriptorProto, ParserError> {
+        let mut reader = Reader::new(bytes);
+        let entity = "OneOfDescriptorProto";
+        let mut name = None;
+
+        while !reader.eof() {
+            let (field_number, wire_type) = reader.read_tag()?;
+            match field_number {
+                1 => {
+                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    name = Some(str);
+                }
+                _ => reader.skip(wire_type)?,
+            }
+        }
+        Ok(OneOfDescriptorProto {
+            name,
+        })
+    }
+
+}
+
+/// Describes a value within an enum.
+///
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L388>
+#[derive(Debug, Default)]
+struct EnumValueDescriptorProto {
+    name: Option<String>,
+    number: Option<u32>,
+}
+
+impl EnumValueDescriptorProto {
+    fn parse(bytes: &[u8]) -> Result<EnumValueDescriptorProto, ParserError> {
+        let mut reader = Reader::new(bytes);
+        let entity = "EnumValueDescriptorProto";
+        let mut name = None;
+        let mut number = None;
+
+        while !reader.eof() {
+            let (field_number, wire_type) = reader.read_tag()?;
+            match field_number {
+                1 => {
+                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    name = Some(str);
+                }
+                2 => {
+                    let value = parser::uint32("number", entity, &mut reader, wire_type)?;
+                    number = Some(value);
+                }
+                _ => reader.skip(wire_type)?,
+            }
+        }
+        Ok(EnumValueDescriptorProto {
+            name,
+            number,
+        })
+    }
+}
+
+/// Describes option of a message type.
+///
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L581>
+#[derive(Debug, Default)]
+struct MessageOptions {
+    /// Whether the message is an automatically generated map entry type for the maps field.
+    map_entry: Option<bool>,
+}
+
+impl MessageOptions {
+    fn parse(bytes: &[u8]) -> Result<MessageOptions, ParserError> {
+        let mut reader = Reader::new(bytes);
+        let entity = "MessageOption";
+        let mut map_entry = None;
+
+        while !reader.eof() {
+            let (field_number, wire_type) = reader.read_tag()?;
+            match field_number {
+                7 => {
+                    let value = parser::bool("map_entry", entity, &mut reader, wire_type)?;
+                    map_entry = Some(value);
+                }
+                _ => reader.skip(wire_type)?,
+            }
+        }
+        Ok(MessageOptions { map_entry })
     }
 }
 
