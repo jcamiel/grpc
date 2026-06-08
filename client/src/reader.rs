@@ -222,4 +222,3 @@ impl<'input> Reader<'input> {
         Ok(())
     }
 }
-

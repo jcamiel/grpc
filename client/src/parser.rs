@@ -1,6 +1,6 @@
+use super::reader::{Reader, ReaderError, WireType};
 use std::fmt;
 use std::fmt::Formatter;
-use super::reader::{Reader, ReaderError, WireType};
 
 pub enum ParserError {
     Reader(ReaderError),
@@ -10,8 +10,12 @@ pub enum ParserError {
         field: &'static str,
         entity: &'static str,
     },
-    UnsupportedSyntax { syntax: String, },
-    Schema {cause: String},
+    UnsupportedSyntax {
+        syntax: String,
+    },
+    Schema {
+        cause: String,
+    },
 }
 
 impl From<ReaderError> for ParserError {
@@ -24,15 +28,19 @@ impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             ParserError::Reader(..) => write!(f, "ParserError::Reader"),
-            ParserError::WireTypeMismatch {..} => write!(f, "ParserError::WireTypeMismatch"),
-            ParserError::UnsupportedSyntax {..} => write!(f, "ParserError::UnsupportedSyntax"),
-            ParserError::Schema { ..} => write!(f, "ParserError::Schema"),
+            ParserError::WireTypeMismatch { .. } => write!(f, "ParserError::WireTypeMismatch"),
+            ParserError::UnsupportedSyntax { .. } => write!(f, "ParserError::UnsupportedSyntax"),
+            ParserError::Schema { .. } => write!(f, "ParserError::Schema"),
         }
     }
 }
 
-
-pub fn string(field: &'static str, entity:&'static str, reader: &mut Reader, wt: WireType) -> Result<String, ParserError> {
+pub fn string(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<String, ParserError> {
     if wt != WireType::Len {
         return Err(ParserError::WireTypeMismatch {
             expected: WireType::Len,
@@ -45,7 +53,12 @@ pub fn string(field: &'static str, entity:&'static str, reader: &mut Reader, wt:
     Ok(value)
 }
 
-pub fn bool(field: &'static str, entity:&'static str, reader: &mut Reader, wt: WireType) -> Result<bool, ParserError> {
+pub fn bool(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<bool, ParserError> {
     if wt != WireType::VarInt {
         return Err(ParserError::WireTypeMismatch {
             expected: WireType::VarInt,
@@ -58,7 +71,12 @@ pub fn bool(field: &'static str, entity:&'static str, reader: &mut Reader, wt: W
     Ok(value)
 }
 
-pub fn uint32(field: &'static str, entity:&'static str, reader: &mut Reader, wt: WireType) -> Result<u32, ParserError> {
+pub fn uint32(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<u32, ParserError> {
     if wt != WireType::VarInt {
         return Err(ParserError::WireTypeMismatch {
             expected: WireType::VarInt,
@@ -71,7 +89,12 @@ pub fn uint32(field: &'static str, entity:&'static str, reader: &mut Reader, wt:
     Ok(value)
 }
 
-pub fn message<'input>(field: &'static str, entity:&'static str, reader: &'input mut Reader, wt: WireType) -> Result<&'input[u8], ParserError> {
+pub fn message<'input>(
+    field: &'static str,
+    entity: &'static str,
+    reader: &'input mut Reader,
+    wt: WireType,
+) -> Result<&'input [u8], ParserError> {
     if wt != WireType::Len {
         return Err(ParserError::WireTypeMismatch {
             expected: WireType::Len,
@@ -84,7 +107,12 @@ pub fn message<'input>(field: &'static str, entity:&'static str, reader: &'input
     Ok(value)
 }
 
-pub fn r#enum(field: &'static str, entity:&'static str, reader: &mut Reader, wt: WireType) -> Result<u64, ParserError> {
+pub fn r#enum(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<u64, ParserError> {
     if wt != WireType::VarInt {
         return Err(ParserError::WireTypeMismatch {
             expected: WireType::VarInt,

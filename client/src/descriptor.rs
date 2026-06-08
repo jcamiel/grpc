@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{format, Formatter};
+use std::fmt::{Formatter, format};
 
 use super::parser;
 use super::parser::ParserError;
@@ -43,7 +43,10 @@ impl FileDescriptorSet {
 struct FileDescriptorProto {
     name: Option<String>,
     package: Option<String>,
+    /// All top-level definitions in this file.
     message_types: Vec<DescriptorProto>,
+    enum_types: Vec<EnumDescriptorProto>,
+    services: Vec<ServiceDescriptorProto>,
 }
 
 impl FileDescriptorProto {
@@ -54,6 +57,8 @@ impl FileDescriptorProto {
         let mut name = None;
         let mut package = None;
         let mut message_types = Vec::new();
+        let mut enum_types = Vec::new();
+        let mut services = Vec::new();
 
         while !reader.eof() {
             let (field_number, wire_type) = reader.read_tag()?;
@@ -71,6 +76,16 @@ impl FileDescriptorProto {
                     let message_type = DescriptorProto::parse(bytes)?;
                     message_types.push(message_type);
                 }
+                5 => {
+                    let bytes = parser::message("enum_type", entity, &mut reader, wire_type)?;
+                    let enum_type = EnumDescriptorProto::parse(bytes)?;
+                    enum_types.push(enum_type);
+                }
+                6 => {
+                    let bytes = parser::message("service", entity, &mut reader, wire_type)?;
+                    let service = ServiceDescriptorProto::parse(bytes)?;
+                    services.push(service);
+                }
                 12 => {
                     let syntax = parser::string("syntax", entity, &mut reader, wire_type)?;
                     if syntax != "proto3" {
@@ -84,6 +99,8 @@ impl FileDescriptorProto {
             name,
             package,
             message_types,
+            enum_types,
+            services,
         })
     }
 }
@@ -168,6 +185,11 @@ struct FieldDescriptorProto {
     name: Option<String>,
     number: Option<u32>,
     r#type: Option<FieldType>,
+    /// For message and enum types, this is the name of the type.  If the name
+    /// starts with a '.', it is fully-qualified.  Otherwise, C++-like scoping
+    /// rules are used to find the type (i.e. first the nested types within this
+    /// message are searched, then within the parent, on up to the root
+    /// namespace).
     type_name: Option<String>,
     oneof_index: Option<u32>,
     proto3_optional: Option<bool>,
@@ -196,7 +218,11 @@ enum FieldType {
 }
 
 impl FieldType {
-    fn try_from(value: u64, field: &'static str, entity: &'static str) -> Result<Self, ParserError> {
+    fn try_from(
+        value: u64,
+        field: &'static str,
+        entity: &'static str,
+    ) -> Result<Self, ParserError> {
         match value {
             1 => Ok(FieldType::Double),
             2 => Ok(FieldType::Float),
@@ -218,8 +244,8 @@ impl FieldType {
             18 => Ok(FieldType::SInt64),
             _ => {
                 let cause = format!("Invalid enum value {} for {}:{}", value, entity, field);
-                Err(ParserError::Schema { cause})
-            },
+                Err(ParserError::Schema { cause })
+            }
         }
     }
 }
@@ -305,7 +331,9 @@ impl FieldDescriptorProto {
                 && field_type != FieldType::Message
                 && field_type != FieldType::Enum
             {
-                return Err(ParserError::Schema {cause:"Inconsistent type and type_name".to_string()})
+                return Err(ParserError::Schema {
+                    cause: "Inconsistent type and type_name".to_string(),
+                });
             }
         }
 
@@ -353,10 +381,7 @@ impl EnumDescriptorProto {
                 _ => reader.skip(wire_type)?,
             }
         }
-        Ok(EnumDescriptorProto {
-            name,
-            values,
-        })
+        Ok(EnumDescriptorProto { name, values })
     }
 }
 
@@ -384,11 +409,8 @@ impl OneOfDescriptorProto {
                 _ => reader.skip(wire_type)?,
             }
         }
-        Ok(OneOfDescriptorProto {
-            name,
-        })
+        Ok(OneOfDescriptorProto { name })
     }
-
 }
 
 /// Describes a value within an enum.
@@ -421,9 +443,87 @@ impl EnumValueDescriptorProto {
                 _ => reader.skip(wire_type)?,
             }
         }
-        Ok(EnumValueDescriptorProto {
+        Ok(EnumValueDescriptorProto { name, number })
+    }
+}
+
+/// Describes a service.
+///
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L396>
+#[derive(Debug, Default)]
+struct ServiceDescriptorProto {
+    name: Option<String>,
+    methods: Vec<MethodDescriptorProto>,
+}
+
+impl ServiceDescriptorProto {
+    fn parse(bytes: &[u8]) -> Result<ServiceDescriptorProto, ParserError> {
+        let mut reader = Reader::new(bytes);
+        let entity = "ServiceDescriptorProto";
+        let mut name = None;
+        let mut methods = Vec::new();
+
+        while !reader.eof() {
+            let (field_number, wire_type) = reader.read_tag()?;
+            match field_number {
+                1 => {
+                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    name = Some(str);
+                }
+                2 => {
+                    let bytes = parser::message("method", entity, &mut reader, wire_type)?;
+                    let method = MethodDescriptorProto::parse(bytes)?;
+                    methods.push(method);
+                }
+                _ => reader.skip(wire_type)?,
+            }
+        }
+        Ok(ServiceDescriptorProto { name, methods })
+    }
+}
+
+/// Describes a method of a service.
+///
+/// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L404>
+#[derive(Debug, Default)]
+struct MethodDescriptorProto {
+    name: Option<String>,
+    /// Input and output type names. These are resolved in the same way as
+    /// FieldDescriptorProto.type_name, but must refer to a message type.
+    input_type: Option<String>,
+    output_type: Option<String>,
+}
+
+impl MethodDescriptorProto {
+    fn parse(bytes: &[u8]) -> Result<MethodDescriptorProto, ParserError> {
+        let mut reader = Reader::new(bytes);
+        let entity = "MethodDescriptorProto";
+        let mut name = None;
+        let mut input_type = None;
+        let mut output_type = None;
+
+        while !reader.eof() {
+            let (field_number, wire_type) = reader.read_tag()?;
+            match field_number {
+                1 => {
+                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    name = Some(str);
+                }
+                2 => {
+                    let str = parser::string("input_type", entity, &mut reader, wire_type)?;
+                    input_type = Some(str);
+                }
+                3 => {
+                    let str = parser::string("output_type", entity, &mut reader, wire_type)?;
+                    output_type = Some(str);
+                }
+                _ => reader.skip(wire_type)?,
+            }
+        }
+        Ok(MethodDescriptorProto {
             name,
-            number,
+            input_type,
+            output_type,
         })
     }
 }
@@ -456,4 +556,3 @@ impl MessageOptions {
         Ok(MessageOptions { map_entry })
     }
 }
-
