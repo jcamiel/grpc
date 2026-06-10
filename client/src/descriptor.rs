@@ -201,6 +201,7 @@ impl DescriptorProto {
 pub struct FieldDescriptorProto {
     pub name: Option<String>,
     pub number: Option<u32>,
+    pub label: Option<FieldLabel>,
     pub r#type: Option<FieldType>,
     /// For message and enum types, this is the name of the type.  If the name
     /// starts with a '.', it is fully-qualified.  Otherwise, C++-like scoping
@@ -292,14 +293,51 @@ impl fmt::Display for FieldType {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum FieldLabel {
+    Optional = 1,
+    Repeated = 3,
+    // The required label should not be supported as we target protobuf3 syntax.
+    Required = 2,
+}
+
+impl FieldLabel {
+    fn try_from(
+        value: u64,
+        field: &'static str,
+        entity: &'static str,
+    ) -> Result<Self, ParserError> {
+        match value {
+            1 => Ok(FieldLabel::Optional),
+            2 => Ok(FieldLabel::Required),
+            3 => Ok(FieldLabel::Repeated),
+            _ => {
+                let cause = format!("Invalid enum value {} for {}:{}", value, entity, field);
+                Err(ParserError::Schema { cause })
+            }
+        }
+    }
+}
+
+impl fmt::Display for FieldLabel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            FieldLabel::Optional => write!(f, "OPTIONAL"),
+            FieldLabel::Required => write!(f, "REQUIRED"),
+            FieldLabel::Repeated => write!(f, "REPEATED"),
+        }
+    }
+}
+
 impl FieldDescriptorProto {
     fn parse(bytes: &[u8]) -> Result<FieldDescriptorProto, ParserError> {
         let mut reader = Reader::new(bytes);
         let entity = "FieldDescriptorProto";
         let mut name = None;
+        let mut number = None;
+        let mut label = None;
         let mut field_type = None;
         let mut type_name = None;
-        let mut number = None;
         let mut oneof_index = None;
         let mut proto3_optional = None;
 
@@ -313,6 +351,11 @@ impl FieldDescriptorProto {
                 3 => {
                     let value = parser::uint32("number", entity, &mut reader, wire_type)?;
                     number = Some(value);
+                }
+                4 => {
+                    let value = parser::r#enum("label", entity, &mut reader, wire_type)?;
+                    let value = FieldLabel::try_from(value, "label", entity)?;
+                    label = Some(value);
                 }
                 5 => {
                     let value = parser::r#enum("type", entity, &mut reader, wire_type)?;
@@ -356,11 +399,14 @@ impl FieldDescriptorProto {
 
         // TODO: check proto3_optional and oneof_index consistency
 
+        // TODO: check label and required
+
         Ok(FieldDescriptorProto {
             name,
+            number,
+            label,
             r#type: field_type,
             type_name,
-            number,
             oneof_index,
             proto3_optional,
         })
