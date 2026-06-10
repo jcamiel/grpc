@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Formatter, format};
+use std::fmt::Formatter;
 
 use super::parser;
 use super::parser::ParserError;
@@ -492,6 +492,10 @@ pub struct MethodDescriptorProto {
     /// FieldDescriptorProto.type_name, but must refer to a message type.
     pub input_type: Option<String>,
     pub output_type: Option<String>,
+    /// Identifies if client streams multiple client messages
+    pub client_streaming: Option<bool>,
+    /// Identifies if server streams multiple server messages
+    pub server_streaming: Option<bool>,
 }
 
 impl MethodDescriptorProto {
@@ -501,6 +505,8 @@ impl MethodDescriptorProto {
         let mut name = None;
         let mut input_type = None;
         let mut output_type = None;
+        let mut client_streaming = None;
+        let mut server_streaming = None;
 
         while !reader.eof() {
             let (field_number, wire_type) = reader.read_tag()?;
@@ -517,6 +523,14 @@ impl MethodDescriptorProto {
                     let str = parser::string("output_type", entity, &mut reader, wire_type)?;
                     output_type = Some(str);
                 }
+                5 => {
+                    let value = parser::bool("client_streaming", entity, &mut reader, wire_type)?;
+                    client_streaming = Some(value);
+                }
+                6 => {
+                    let value = parser::bool("server_streaming", entity, &mut reader, wire_type)?;
+                    server_streaming = Some(value);
+                }
                 _ => reader.skip(wire_type)?,
             }
         }
@@ -524,6 +538,8 @@ impl MethodDescriptorProto {
             name,
             input_type,
             output_type,
+            client_streaming,
+            server_streaming,
         })
     }
 }
