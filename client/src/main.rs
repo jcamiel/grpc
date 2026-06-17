@@ -20,11 +20,13 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use crate::descriptor::FileDescriptorSet;
+use crate::symbols::SymbolTable;
 use clap::Parser;
 
 mod descriptor;
 mod parser;
 mod reader;
+mod symbols;
 
 /// Rust prototype of the gRPC code paths Hurl will eventually grow.
 ///
@@ -50,14 +52,28 @@ fn main() -> ExitCode {
         }
     };
 
-    match FileDescriptorSet::parse(&bytes) {
-        Ok(fds) => {
-            println!("{:#?}", fds);
-            ExitCode::SUCCESS
-        }
+    // Read our proto file description
+    let fds = match FileDescriptorSet::parse(&bytes) {
+        Ok(fds) => fds,
         Err(e) => {
             eprintln!("error: failed to decode protoset: {e}");
-            ExitCode::FAILURE
+            return ExitCode::FAILURE;
         }
-    }
+    };
+
+    // Constructs the symbol tables
+    let st = match SymbolTable::build(&fds) {
+        Ok(st) => st,
+        Err(e) => {
+            eprintln!("error: failed to build symbol table: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    println!("proto:");
+    println!("{:#?}", fds);
+    println!("symbol table:");
+    println!("{}", st);
+
+    ExitCode::SUCCESS
 }
