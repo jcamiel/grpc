@@ -19,7 +19,10 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
-use super::descriptor::{DescriptorProto, EnumDescriptorProto, FileDescriptorSet, ServiceDescriptorProto};
+use super::descriptor::{
+    DescriptorProto, EnumDescriptorProto, FileDescriptorSet, MethodDescriptorProto,
+    ServiceDescriptorProto,
+};
 
 /// A symbol table for all messages, enums, services of a proto definition file.
 #[derive(Debug)]
@@ -82,7 +85,7 @@ impl<'fds> SymbolTable<'fds> {
             for msg in &file.message_types {
                 add_message(&mut by_fqn, pkg, msg)?;
             }
-            for enm in &file.enum_types  {
+            for enm in &file.enum_types {
                 add_enum(&mut by_fqn, pkg, enm)?;
             }
             for svc in &file.services {
@@ -91,6 +94,68 @@ impl<'fds> SymbolTable<'fds> {
         }
         Ok(SymbolTable { by_fqn })
     }
+}
+
+impl<'fds> SymbolTable<'fds> {
+    /// Look up a service by FQN. Accepts both `.pkg.Service` (leading-dot, what
+    /// `protoc` emits in `type_name` / `input_type` / `output_type`) and the
+    /// dotless `pkg.Service` form.
+    pub fn find_service(&self, fqn: &str) -> Option<&'fds ServiceDescriptorProto> {
+        match self.by_fqn.get(normalize(fqn))? {
+            Symbol::Service(svc) => Some(svc),
+            _ => None,
+        }
+    }
+
+    /// Look up a message by FQN. Same normalization as [`Self::find_service`].
+    pub fn find_message(&self, fqn: &str) -> Option<&'fds DescriptorProto> {
+        match self.by_fqn.get(normalize(fqn))? {
+            Symbol::Message(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    /// Look up an enum by FQN. Same normalization as [`Self::find_service`].
+    pub fn find_enum(&self, fqn: &str) -> Option<&'fds EnumDescriptorProto> {
+        match self.by_fqn.get(normalize(fqn))? {
+            Symbol::Enum(en) => Some(en),
+            _ => None,
+        }
+    }
+
+    /// Look up a method on `service` by its local name. Doesn't consult the
+    /// symbol table — the service descriptor already carries its methods —
+    /// but lives here for API symmetry with the other `find_*` lookups.
+    pub fn find_method(
+        &self,
+        service: &'fds ServiceDescriptorProto,
+        method_name: &str,
+    ) -> Option<&'fds MethodDescriptorProto> {
+        service
+            .methods
+            .iter()
+            .find(|m| m.name.as_deref() == Some(method_name))
+    }
+
+    /// Resolve a method's input message via its `input_type` FQN.
+    pub fn resolve_method_input(&self, m: &MethodDescriptorProto) -> Option<&'fds DescriptorProto> {
+        self.find_message(m.input_type.as_deref()?)
+    }
+
+    /// Resolve a method's output message via its `output_type` FQN.
+    pub fn resolve_method_output(
+        &self,
+        m: &MethodDescriptorProto,
+    ) -> Option<&'fds DescriptorProto> {
+        self.find_message(m.output_type.as_deref()?)
+    }
+}
+
+/// Strip the leading `.` from an absolute FQN. `protoc` emits all type
+/// references in absolute form (`.pkg.Type`); the symbol table keys are stored
+/// without the dot, so we normalize at lookup time and let callers pass either.
+fn normalize(fqn: &str) -> &str {
+    fqn.strip_prefix('.').unwrap_or(fqn)
 }
 
 /// Utilities to add entities to the hash map.
@@ -115,7 +180,7 @@ fn add_message<'fds>(
         add_message(map, &fqn, nested)?;
     }
     for en in &msg.enum_types {
-        add_enum(map, &fqn, en    )?;
+        add_enum(map, &fqn, en)?;
     }
     Ok(())
 }
@@ -130,7 +195,6 @@ fn add_enum<'fds>(
     insert(map, enm_fqn.clone(), Symbol::Enum(enm))?;
     Ok(())
 }
-
 
 fn add_service<'fds>(
     map: &mut HashMap<String, Symbol<'fds>>,

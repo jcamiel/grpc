@@ -7,3 +7,4 @@ edition = "2024"
 # Argument parsing only — explicitly **not** a protobuf/gRPC crate, so it doesn't
 # breach the "no third-party gRPC or protobuf crate" constraint (see ../PLAN.md).
 clap = { version = "4", features = ["derive"] }
+url = "2.5.8"

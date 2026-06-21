@@ -15,18 +15,21 @@
  * limitations under the License.
  *
  */
-use std::fs;
-use std::path::PathBuf;
-use std::process::ExitCode;
-
-use crate::descriptor::FileDescriptorSet;
-use crate::symbols::SymbolTable;
-use clap::Parser;
-
+mod client;
 mod descriptor;
 mod parser;
+mod pool;
 mod reader;
 mod symbols;
+
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+use clap::Parser;
+use url::Url;
+
+use client::Client;
+use pool::DescriptorPool;
 
 /// Rust prototype of the gRPC code paths Hurl will eventually grow.
 ///
@@ -35,6 +38,7 @@ mod symbols;
 #[derive(Parser, Debug)]
 #[command(name = "client", version, about, long_about = None)]
 struct Args {
+    url: String,
     /// Path to a serialized `FileDescriptorSet`
     /// (output of `protoc --descriptor_set_out=...`, conventionally `.protoset`).
     #[arg(long, value_name = "PATH")]
@@ -44,36 +48,24 @@ struct Args {
 fn main() -> ExitCode {
     let args = Args::parse();
 
-    let bytes = match fs::read(&args.protoset) {
-        Ok(b) => b,
+    let protoset = Path::new(&args.protoset);
+    let descriptor_pool = match DescriptorPool::load(protoset) {
+        Ok(d) => d,
         Err(e) => {
-            eprintln!("error: could not read {}: {}", args.protoset.display(), e);
+            eprintln!("error: could not load {}: {:#?}", protoset.display(), e);
             return ExitCode::FAILURE;
         }
     };
 
-    // Read our proto file description
-    let fds = match FileDescriptorSet::parse(&bytes) {
-        Ok(fds) => fds,
+    let client = Client::new();
+    let url = Url::parse(&args.url).unwrap();
+    let _r = match client.run(descriptor_pool, url) {
+        Ok(r) => r,
         Err(e) => {
-            eprintln!("error: failed to decode protoset: {e}");
+            eprintln!("error: could not run");
             return ExitCode::FAILURE;
         }
     };
-
-    // Constructs the symbol tables
-    let st = match SymbolTable::build(&fds) {
-        Ok(st) => st,
-        Err(e) => {
-            eprintln!("error: failed to build symbol table: {e}");
-            return ExitCode::FAILURE;
-        }
-    };
-
-    println!("proto:");
-    println!("{:#?}", fds);
-    println!("symbol table:");
-    println!("{}", st);
 
     ExitCode::SUCCESS
 }

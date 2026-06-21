@@ -13,7 +13,7 @@ Plumbing only — the actual decoder is a `todo!()`.
 
 - `--protoset <PATH>` is parsed (via [`clap`](https://crates.io/crates/clap)).
 - The file is read into memory.
-- The bytes are handed to `protoset::decode` in [`src/protoset.rs`](src/protoset.rs).
+- The bytes are handed to `protoset::decode` in [`src/protoset.rs`](src/pool.rs).
 - `decode` panics with a TODO message — to be filled in next.
 
 `clap` is a CLI parser, not a protobuf/gRPC crate, so it doesn't breach the "no third-party gRPC or protobuf crate"

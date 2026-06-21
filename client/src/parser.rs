@@ -15,10 +15,12 @@
  * limitations under the License.
  *
  */
-use super::reader::{Reader, ReaderError, WireType};
 use std::fmt;
 use std::fmt::Formatter;
 
+use super::reader::{Reader, ReaderError, WireType};
+
+#[derive(Debug)]
 pub enum ParserError {
     Reader(ReaderError),
     WireTypeMismatch {
