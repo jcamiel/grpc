@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
-use super::descriptor::{DescriptorProto, FileDescriptorSet, ServiceDescriptorProto};
+use super::descriptor::{DescriptorProto, EnumDescriptorProto, FileDescriptorSet, ServiceDescriptorProto};
 
 /// A symbol table for all messages, enums, services of a proto definition file.
 #[derive(Debug)]
@@ -31,6 +31,7 @@ pub struct SymbolTable<'fds> {
 #[derive(Copy, Clone, Debug)]
 pub enum Symbol<'fds> {
     Message(&'fds DescriptorProto),
+    Enum(&'fds EnumDescriptorProto),
     Service(&'fds ServiceDescriptorProto),
 }
 
@@ -38,6 +39,7 @@ impl fmt::Display for Symbol<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Symbol::Message(DescriptorProto { .. }) => write!(f, "Message"),
+            Symbol::Enum(EnumDescriptorProto { .. }) => write!(f, "Enum"),
             Symbol::Service(ServiceDescriptorProto { .. }) => write!(f, "Service"),
         }
     }
@@ -80,6 +82,9 @@ impl<'fds> SymbolTable<'fds> {
             for msg in &file.message_types {
                 add_message(&mut by_fqn, pkg, msg)?;
             }
+            for enm in &file.enum_types  {
+                add_enum(&mut by_fqn, pkg, enm)?;
+            }
             for svc in &file.services {
                 add_service(&mut by_fqn, pkg, svc)?;
             }
@@ -109,9 +114,23 @@ fn add_message<'fds>(
     for nested in &msg.nested_types {
         add_message(map, &fqn, nested)?;
     }
-    // for en     in &msg.enum_types   { add_enum   (map, &fqn, en    )?; }
+    for en in &msg.enum_types {
+        add_enum(map, &fqn, en    )?;
+    }
     Ok(())
 }
+
+fn add_enum<'fds>(
+    map: &mut HashMap<String, Symbol<'fds>>,
+    parent: &str,
+    enm: &'fds EnumDescriptorProto,
+) -> Result<(), SymbolError> {
+    let Some(name) = &enm.name else { return Ok(()) };
+    let enm_fqn = join(parent, name);
+    insert(map, enm_fqn.clone(), Symbol::Enum(enm))?;
+    Ok(())
+}
+
 
 fn add_service<'fds>(
     map: &mut HashMap<String, Symbol<'fds>>,
