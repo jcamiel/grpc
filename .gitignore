@@ -12,5 +12,8 @@ __pycache__/
 # Claude Code local settings
 .claude/settings.local.json
 
+# IntelliJ stuff
+.idea/
+
 # Rust
 client/target/
