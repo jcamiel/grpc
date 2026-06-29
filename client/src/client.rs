@@ -1,40 +1,62 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-use super::pool::DescriptorPool;
-use super::symbols::SymbolError;
 use url::Url;
 
+use super::pool::DescriptorPool;
+use super::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
+use super::symbols::SymbolError;
+use super::request::Request;
+
 pub struct Client {}
+
+
 
 #[derive(Debug)]
 pub enum RunnerError {
     /// URL path isn't of the form `/pkg.Service/Method`.
-    InvalidUrl,
+    InvalidUrl { url: Url },
     /// Building the symbol table failed (malformed descriptor set).
     SymbolBuild(SymbolError),
     /// No service registered under this FQN.
-    UnknownService { fqn: String, method: String },
+    UnknownService { service: String, method: String },
     /// Service exists but has no method with this local name.
     UnknownMethod { service: String, method: String },
     /// A method's `input_type` / `output_type` couldn't be resolved.
-    UnresolvedType { fqn: String },
+    UnresolvedType {
+        service: String,
+        method: String,
+        type_name: String,
+    },
 }
 
 impl fmt::Display for RunnerError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            RunnerError::InvalidUrl => write!(f, "RunnerError::InvalidUrl"),
+            RunnerError::InvalidUrl { url } => {
+                let path = url.path().trim_start_matches('/');
+                write!(
+                    f,
+                    "Error running method, URL path '{path}' is not in expected format 'service/method'"
+                )
+            }
             RunnerError::SymbolBuild(_) => write!(f, "RunnerError::SymbolBuild"),
-            RunnerError::UnknownService { fqn, method } => write!(
+            RunnerError::UnknownService { service, method } => write!(
                 f,
-                "Error running method '{fqn}/{method}', service '{fqn}' not found"
+                "Error running method '{service}/{method}', service '{service}' not found"
             ),
             RunnerError::UnknownMethod { service, method } => write!(
                 f,
                 "Error running method '{service}/{method}', service '{service}' does not include a method '{method}'"
             ),
-            RunnerError::UnresolvedType { .. } => write!(f, "RunnerError::UnresolvedType"),
+            RunnerError::UnresolvedType {
+                service,
+                method,
+                type_name,
+            } => write!(
+                f,
+                "Error running method '{service}/{method}', type '{type_name}' not found"
+            ),
         }
     }
 }
@@ -45,81 +67,10 @@ impl Client {
     }
 
     /// Run a gRPC request, given an `url` and a descriptor.
-    pub fn run(&self, descriptor_pool: DescriptorPool, url: Url) -> Result<(), RunnerError> {
-        // Parse the URL into (service FQN, method name).
-        let (svc_fqn, method_name) = parse_grpc_path(&url)?;
-
-        // Get the descriptor set.
-        let fds = descriptor_pool.descriptor_set();
-        println!("proto:");
-        println!("{:#?}", fds);
-
-        // Get the symbols table.
-        let symbols = descriptor_pool
-            .symbols()
-            .map_err(RunnerError::SymbolBuild)?;
-        println!("symbols:");
-        println!("{symbols}");
-
-        // Get service, method, input and output message type.
-        let svc = symbols
-            .find_service(&svc_fqn)
-            .ok_or_else(|| RunnerError::UnknownService {
-                fqn: svc_fqn.clone(),
-                method: method_name.clone(),
-            })?;
-        println!("service:");
-        println!("{:#?}", svc);
-
-        let method =
-            symbols
-                .find_method(svc, &method_name)
-                .ok_or_else(|| RunnerError::UnknownMethod {
-                    service: svc_fqn.clone(),
-                    method: method_name.clone(),
-                })?;
-        println!("method:");
-        println!("{:#?}", method);
-
-        let input_msg =
-            symbols
-                .resolve_method_input(method)
-                .ok_or_else(|| RunnerError::UnresolvedType {
-                    fqn: method.input_type.clone().unwrap_or_default(),
-                })?;
-        let output_msg =
-            symbols
-                .resolve_method_output(method)
-                .ok_or_else(|| RunnerError::UnresolvedType {
-                    fqn: method.output_type.clone().unwrap_or_default(),
-                })?;
-        println!("input message:");
-        println!("{:#?}", input_msg);
-        println!("output message:");
-        println!("{:#?}", output_msg);
-
+    pub fn run(&self, descriptor_pool: DescriptorPool, url: Url, body: &[u8]) -> Result<(), RunnerError> {
+        let _request = Request::try_from(&descriptor_pool, url, body)?;
         Ok(())
     }
-}
-
-/// Parse a gRPC URL path into `(service FQN, method name)`.
-///
-/// gRPC paths take the form `/pkg.Service/Method` — a single slash-separated service+method pair.
-/// We accept additional leading path segments and treat everything except the last segment as the
-/// service name (joined with `.`), which matches the older curl-style convention of typing the
-/// service path directly into the URL.
-fn parse_grpc_path(url: &Url) -> Result<(String, String), RunnerError> {
-    let path = url.path();
-    if path.is_empty() || path == "/" {
-        return Err(RunnerError::InvalidUrl);
-    }
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() < 2 {
-        return Err(RunnerError::InvalidUrl);
-    }
-    let method_name = parts.last().unwrap().to_string();
-    let svc_fqn = parts[..parts.len() - 1].join(".");
-    Ok((svc_fqn, method_name))
 }
 
 #[cfg(test)]
@@ -130,8 +81,7 @@ mod tests {
         ServiceDescriptorProto,
     };
 
-    // --- Builders to construct a `FileDescriptorSet` by hand. ---
-
+    // Builders to construct a `FileDescriptorSet` by hand for tests.
     fn message(name: &str) -> DescriptorProto {
         DescriptorProto {
             name: Some(name.to_string()),
@@ -177,6 +127,10 @@ mod tests {
         Url::parse(s).unwrap()
     }
 
+    fn body() -> Vec<u8> {
+        vec![]
+    }
+
     /// A descriptor set with one fully-wired service: `pkg.Greeter/SayHello`
     /// taking `pkg.HelloRequest` and returning `pkg.HelloReply`.
     fn greeter_pool() -> DescriptorPool {
@@ -191,12 +145,34 @@ mod tests {
     }
 
     #[test]
+    fn run_reports_invalid_url() {
+        let files = vec![];
+        let p = pool(files);
+        let u = url("http://localhost/pkg.Greeter/");
+        let b = body();
+        let err = Client::new().run(p.clone(), u, &b).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Error running method, URL path 'pkg.Greeter/' is not in expected format 'service/method'"
+        );
+
+        let u = url("http://localhost");
+        let err = Client::new().run(p, u, &b).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Error running method, URL path '' is not in expected format 'service/method'"
+        );
+    }
+
+    #[test]
     fn run_reports_empty_services() {
         // Empty descriptor set: no service registered under the FQN.
         let files = vec![file("pkg", vec![], vec![])];
         let p = pool(files);
+        let b = body();
+        let u = url("http://localhost/pkg.Greeter/SayHello");
         let err = Client::new()
-            .run(p, url("http://localhost/pkg.Greeter/SayHello"))
+            .run(p, u, &b)
             .unwrap_err();
         assert_eq!(
             err.to_string(),
@@ -207,8 +183,11 @@ mod tests {
     #[test]
     fn run_reports_unknown_service() {
         let p = greeter_pool();
+        let u = url("http://localhost/pkg.Foo/GetFoo");
+        let b = body();
+
         let err = Client::new()
-            .run(p, url("http://localhost/pkg.Foo/GetFoo"))
+            .run(p, u, &b)
             .unwrap_err();
         assert_eq!(
             err.to_string(),
@@ -219,8 +198,11 @@ mod tests {
     #[test]
     fn run_reports_method_not_found() {
         let p = greeter_pool();
+        let u = url("http://localhost/pkg.Greeter/SayHi");
+        let b = body();
+
         let err = Client::new()
-            .run(p, url("http://localhost/pkg.Greeter/SayHi"))
+            .run(p, u, &b)
             .unwrap_err();
         assert_eq!(
             err.to_string(),
@@ -228,95 +210,49 @@ mod tests {
         )
     }
 
-    //
-    //
-    //
-    // #[test]
-    // fn run_rejects_root_path() {
-    //     let err = Client::new()
-    //         .run(greeter_pool(), url("http://localhost/"))
-    //         .unwrap_err();
-    //     assert!(matches!(err, RunnerError::InvalidUrl));
-    // }
-    //
-    // #[test]
-    // fn run_rejects_path_without_method() {
-    //     // A single path segment can't be split into service + method.
-    //     let err = Client::new()
-    //         .run(greeter_pool(), url("http://localhost/pkg.Greeter"))
-    //         .unwrap_err();
-    //     assert!(matches!(err, RunnerError::InvalidUrl));
-    // }
-    //
-    // #[test]
-    // fn run_reports_duplicate_symbols() {
-    //     // Two messages sharing an FQN make `SymbolTable::build` fail.
-    //     let p = pool(vec![file(
-    //         "pkg",
-    //         vec![message("Dup"), message("Dup")],
-    //         vec![],
-    //     )]);
-    //     let err = Client::new()
-    //         .run(p, url("http://localhost/pkg.Greeter/SayHello"))
-    //         .unwrap_err();
-    //     assert!(matches!(err, RunnerError::SymbolBuild(_)));
-    // }
-    //
-    //
-    //
-    // #[test]
-    // fn run_reports_unknown_method() {
-    //     // Service exists but has no method with this local name.
-    //     let err = Client::new()
-    //         .run(greeter_pool(), url("http://localhost/pkg.Greeter/Missing"))
-    //         .unwrap_err();
-    //
-    //     match err {
-    //         RunnerError::UnknownMethod { service, method } => {
-    //             assert_eq!(service, "pkg.Greeter");
-    //             assert_eq!(method, "Missing");
-    //         }
-    //         other => panic!("expected UnknownMethod, got {other:?}"),
-    //     }
-    // }
-    //
-    // #[test]
-    // fn run_reports_unresolved_input_type() {
-    //     // Method's `input_type` points at a message that isn't in the set.
-    //     let p = pool(vec![file(
-    //         "pkg",
-    //         vec![message("HelloReply")],
-    //         vec![service(
-    //             "Greeter",
-    //             vec![method("SayHello", ".pkg.Missing", ".pkg.HelloReply")],
-    //         )],
-    //     )]);
-    //     let err = Client::new()
-    //         .run(p, url("http://localhost/pkg.Greeter/SayHello"))
-    //         .unwrap_err();
-    //     match err {
-    //         RunnerError::UnresolvedType { fqn } => assert_eq!(fqn, ".pkg.Missing"),
-    //         other => panic!("expected UnresolvedType, got {other:?}"),
-    //     }
-    // }
-    //
-    // #[test]
-    // fn run_reports_unresolved_output_type() {
-    //     // Input resolves, but `output_type` points at a missing message.
-    //     let p = pool(vec![file(
-    //         "pkg",
-    //         vec![message("HelloRequest")],
-    //         vec![service(
-    //             "Greeter",
-    //             vec![method("SayHello", ".pkg.HelloRequest", ".pkg.Missing")],
-    //         )],
-    //     )]);
-    //     let err = Client::new()
-    //         .run(p, url("http://localhost/pkg.Greeter/SayHello"))
-    //         .unwrap_err();
-    //     match err {
-    //         RunnerError::UnresolvedType { fqn } => assert_eq!(fqn, ".pkg.Missing"),
-    //         other => panic!("expected UnresolvedType, got {other:?}"),
-    //     }
-    // }
+    #[test]
+    fn run_reports_unresolved_input_type() {
+        // Method's `input_type` points at a message that isn't in the set.
+        let p = pool(vec![file(
+            "pkg",
+            vec![message("HelloReply")],
+            vec![service(
+                "Greeter",
+                vec![method("SayHello", ".pkg.Missing", ".pkg.HelloReply")],
+            )],
+        )]);
+        let u = url("http://localhost/pkg.Greeter/SayHello");
+        let b = body();
+
+        let err = Client::new()
+            .run(p, u, &b)
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Error running method 'pkg.Greeter/SayHello', type '.pkg.Missing' not found"
+        )
+    }
+
+    #[test]
+    fn run_reports_unresolved_output_type() {
+        // Input resolves, but `output_type` points at a missing message.
+        let p = pool(vec![file(
+            "pkg",
+            vec![message("HelloRequest")],
+            vec![service(
+                "Greeter",
+                vec![method("SayHello", ".pkg.HelloRequest", ".pkg.Missing")],
+            )],
+        )]);
+        let u = url("http://localhost/pkg.Greeter/SayHello");
+        let b = body();
+
+        let err = Client::new()
+            .run(p, u, &b)
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Error running method 'pkg.Greeter/SayHello', type '.pkg.Missing' not found"
+        )
+    }
 }

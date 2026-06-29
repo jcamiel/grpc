@@ -26,7 +26,7 @@ use super::reader::Reader;
 ///
 /// The protocol compiler can output a FileDescriptorSet containing the .proto files it parses.
 /// See <https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/descriptor.proto>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FileDescriptorSet {
     pub files: Vec<FileDescriptorProto>,
 }
@@ -56,7 +56,7 @@ impl FileDescriptorSet {
 /// Describes a complete .proto file.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L104>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FileDescriptorProto {
     pub name: Option<String>,
     pub package: Option<String>,
@@ -125,7 +125,7 @@ impl FileDescriptorProto {
 /// Describes a message type.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L151>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct DescriptorProto {
     pub name: Option<String>,
     pub fields: Vec<FieldDescriptorProto>,
@@ -197,7 +197,7 @@ impl DescriptorProto {
 /// Describes a field within a message.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L243>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FieldDescriptorProto {
     pub name: Option<String>,
     pub number: Option<u32>,
@@ -416,7 +416,7 @@ impl FieldDescriptorProto {
 /// Describes an enum type.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L339>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EnumDescriptorProto {
     pub name: Option<String>,
     pub values: Vec<EnumValueDescriptorProto>,
@@ -451,7 +451,7 @@ impl EnumDescriptorProto {
 /// Describes a oneof.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L349>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct OneOfDescriptorProto {
     pub name: Option<String>,
 }
@@ -479,7 +479,7 @@ impl OneOfDescriptorProto {
 /// Describes a value within an enum.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L388>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EnumValueDescriptorProto {
     pub name: Option<String>,
     pub number: Option<u32>,
@@ -513,7 +513,7 @@ impl EnumValueDescriptorProto {
 /// Describes a service.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L396>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ServiceDescriptorProto {
     pub name: Option<String>,
     pub methods: Vec<MethodDescriptorProto>,
@@ -548,7 +548,7 @@ impl ServiceDescriptorProto {
 /// Describes a method of a service.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L404>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct MethodDescriptorProto {
     pub name: Option<String>,
     /// Input and output type names. These are resolved in the same way as
@@ -610,7 +610,7 @@ impl MethodDescriptorProto {
 /// Describes option of a message type.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L581>
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct MessageOptions {
     /// Whether the message is an automatically generated map entry type for the maps field.
     pub map_entry: Option<bool>,

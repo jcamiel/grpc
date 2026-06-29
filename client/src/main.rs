@@ -20,6 +20,7 @@ mod descriptor;
 mod parser;
 mod pool;
 mod reader;
+mod request;
 mod symbols;
 
 use std::path::{Path, PathBuf};
@@ -59,7 +60,8 @@ fn main() -> ExitCode {
 
     let client = Client::new();
     let url = Url::parse(&args.url).unwrap();
-    let _r = match client.run(descriptor_pool, url) {
+    let body = &vec![];
+    let _r = match client.run(descriptor_pool, url, body) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("error: {e}");

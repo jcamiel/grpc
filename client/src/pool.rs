@@ -9,7 +9,7 @@ use crate::symbols::{SymbolError, SymbolTable};
 
 /// A loaded `.protoset` file. Owns the parsed descriptor set; the symbol
 /// table is computed on demand and borrows from `self`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DescriptorPool {
     fds: FileDescriptorSet,
 }
