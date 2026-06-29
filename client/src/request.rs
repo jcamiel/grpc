@@ -14,6 +14,7 @@ pub struct Request<'fds> {
 
 impl <'fds> Request<'fds> {
 
+    /// Build a gRPC request given a set of descriptor, a URL and a body.
     pub fn try_from(
         descriptor_pool: &'fds DescriptorPool, url: Url, _body: &[u8]
     ) -> Result<Self, RunnerError> {

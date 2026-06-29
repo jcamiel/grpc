@@ -23,6 +23,7 @@ mod reader;
 mod request;
 mod symbols;
 
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -58,10 +59,16 @@ fn main() -> ExitCode {
         }
     };
 
+    // Read the request body as a UTF-8 string from standard input.
+    let mut body = String::new();
+    if let Err(e) = io::stdin().read_to_string(&mut body) {
+        eprintln!("error: could not read body from stdin: {e}");
+        return ExitCode::FAILURE;
+    }
+
     let client = Client::new();
     let url = Url::parse(&args.url).unwrap();
-    let body = &vec![];
-    let _r = match client.run(descriptor_pool, url, body) {
+    let _r = match client.run(descriptor_pool, url, body.as_bytes()) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("error: {e}");

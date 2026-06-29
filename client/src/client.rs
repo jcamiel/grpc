@@ -4,7 +4,6 @@ use std::fmt::Formatter;
 use url::Url;
 
 use super::pool::DescriptorPool;
-use super::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
 use super::symbols::SymbolError;
 use super::request::Request;
 
