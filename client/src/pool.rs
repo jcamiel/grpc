@@ -36,6 +36,11 @@ impl DescriptorPool {
         Self::from_bytes(&bytes).map_err(LoadError::Parse)
     }
 
+    /// Create a descriptor pool from a parsed `.protoset` file.
+    pub fn from_descriptor_set(fds: FileDescriptorSet) -> Self {
+        Self { fds }
+    }
+
     /// Parse a `.protoset` from in-memory bytes (handy for tests).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ParserError> {
         Ok(Self {

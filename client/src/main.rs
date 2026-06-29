@@ -62,7 +62,7 @@ fn main() -> ExitCode {
     let _r = match client.run(descriptor_pool, url) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: could not run");
+            eprintln!("error: {e}");
             return ExitCode::FAILURE;
         }
     };
