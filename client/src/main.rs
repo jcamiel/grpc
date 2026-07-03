@@ -21,6 +21,7 @@ mod parser;
 mod pool;
 mod reader;
 mod request;
+mod request_body;
 mod symbols;
 
 use std::io::{self, Read};

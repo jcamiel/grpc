@@ -7,4 +7,6 @@ edition = "2024"
 # Argument parsing only — explicitly **not** a protobuf/gRPC crate, so it doesn't
 # breach the "no third-party gRPC or protobuf crate" constraint (see ../PLAN.md).
 clap = { version = "4", features = ["derive"] }
+hurl = { path = "../../hurl/packages/hurl" }
+hurl_core = { path = "../../hurl/packages/hurl_core" }
 url = "2.5.8"

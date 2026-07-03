@@ -1,15 +1,18 @@
-use std::fmt;
 use std::fmt::Formatter;
+use std::path::Path;
+use std::{fmt, fs};
 
+use hurl::http::{Header, HeaderVec, RequestedHttpVersion::Http2PriorKnowledge};
+use hurl::runner;
+use hurl::runner::{Input, RunnerOptionsBuilder, VariableSet};
+use hurl::util::logger::{LoggerOptionsBuilder, Verbosity};
 use url::Url;
 
 use super::pool::DescriptorPool;
-use super::symbols::SymbolError;
 use super::request::Request;
+use super::symbols::SymbolError;
 
 pub struct Client {}
-
-
 
 #[derive(Debug)]
 pub enum RunnerError {
@@ -26,6 +29,12 @@ pub enum RunnerError {
         service: String,
         method: String,
         type_name: String,
+    },
+    /// A runtime error
+    Runtime {
+        service: String,
+        method: String,
+        error: String,
     },
 }
 
@@ -56,6 +65,12 @@ impl fmt::Display for RunnerError {
                 f,
                 "Error running method '{service}/{method}', type '{type_name}' not found"
             ),
+
+            RunnerError::Runtime {
+                service,
+                method,
+                error,
+            } => write!(f, "Error running method '{service}/{method}', {error}"),
         }
     }
 }
@@ -66,8 +81,69 @@ impl Client {
     }
 
     /// Run a gRPC request, given an `url` and a descriptor.
-    pub fn run(&self, descriptor_pool: DescriptorPool, url: Url, body: &[u8]) -> Result<(), RunnerError> {
-        let _request = Request::try_from(&descriptor_pool, url, body)?;
+    pub fn run(
+        &self,
+        descriptor_pool: DescriptorPool,
+        url: Url,
+        body: &[u8],
+    ) -> Result<(), RunnerError> {
+        // Constructs the gRPC request
+        let request = Request::try_from(&descriptor_pool, &url, body)?;
+
+        // Write the request body to file so we can inject it in Hurl
+        let body_path = Path::new("build/body.in");
+        fs::write(body_path, request.request_body()).unwrap();
+
+        let content = format!(
+            r#"#
+            POST {url}
+            file,build/body.in;
+        "#
+        );
+        let filename = Input::new("sample.hurl");
+        let variables = VariableSet::new();
+        let mut headers = HeaderVec::new();
+        headers.push(Header::new("Content-Type", "application/grpc"));
+        headers.push(Header::new("TE", "trailers"));
+
+        let runner_opts = RunnerOptionsBuilder::new()
+            .http_version(Http2PriorKnowledge)
+            .headers(headers)
+            .build();
+        let logger_opts = LoggerOptionsBuilder::new()
+            .verbosity(Some(Verbosity::Verbose))
+            .build();
+
+        // Run the Hurl sample
+        let result = runner::run(
+            &content,
+            Some(&filename),
+            &runner_opts,
+            &variables,
+            &logger_opts,
+        )
+        .map_err(|e| RunnerError::Runtime {
+            service: request.service_name().to_string(),
+            method: request.method_name().to_string(),
+            error: e.clone(),
+        })?;
+
+        let entry = &result.entries[0];
+        let response = &result.entries[0].calls[0].response;
+        let response_headers = &response.headers;
+        let grpc_status = response_headers
+            .get("grpc-status")
+            .unwrap()
+            .value
+            .parse::<u32>()
+            .unwrap();
+        let grpc_message = &response_headers.get("grpc-message").unwrap().value;
+
+        // println!("{result:#?}");
+        println!("curl cmd:     {}", entry.curl_cmd);
+        println!("grpc-status:  {grpc_status}");
+        println!("grpc-message: {grpc_message}");
+
         Ok(())
     }
 }
@@ -170,9 +246,7 @@ mod tests {
         let p = pool(files);
         let b = body();
         let u = url("http://localhost/pkg.Greeter/SayHello");
-        let err = Client::new()
-            .run(p, u, &b)
-            .unwrap_err();
+        let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Error running method 'pkg.Greeter/SayHello', service 'pkg.Greeter' not found"
@@ -185,9 +259,7 @@ mod tests {
         let u = url("http://localhost/pkg.Foo/GetFoo");
         let b = body();
 
-        let err = Client::new()
-            .run(p, u, &b)
-            .unwrap_err();
+        let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Error running method 'pkg.Foo/GetFoo', service 'pkg.Foo' not found"
@@ -200,9 +272,7 @@ mod tests {
         let u = url("http://localhost/pkg.Greeter/SayHi");
         let b = body();
 
-        let err = Client::new()
-            .run(p, u, &b)
-            .unwrap_err();
+        let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Error running method 'pkg.Greeter/SayHi', service 'pkg.Greeter' does not include a method 'SayHi'"
@@ -223,9 +293,7 @@ mod tests {
         let u = url("http://localhost/pkg.Greeter/SayHello");
         let b = body();
 
-        let err = Client::new()
-            .run(p, u, &b)
-            .unwrap_err();
+        let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Error running method 'pkg.Greeter/SayHello', type '.pkg.Missing' not found"
@@ -246,9 +314,7 @@ mod tests {
         let u = url("http://localhost/pkg.Greeter/SayHello");
         let b = body();
 
-        let err = Client::new()
-            .run(p, u, &b)
-            .unwrap_err();
+        let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Error running method 'pkg.Greeter/SayHello', type '.pkg.Missing' not found"
