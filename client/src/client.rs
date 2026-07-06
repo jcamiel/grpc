@@ -30,6 +30,12 @@ pub enum RunnerError {
         method: String,
         type_name: String,
     },
+    /// The provided request body is not an expected JSON
+    InvalidRequestJsonBody {
+        service: String,
+        method: String,
+        error: String,
+    },
     /// A runtime error
     Runtime {
         service: String,
@@ -45,17 +51,17 @@ impl fmt::Display for RunnerError {
                 let path = url.path().trim_start_matches('/');
                 write!(
                     f,
-                    "Error running method, URL path '{path}' is not in expected format 'service/method'"
+                    "Error running method: URL path '{path}' is not in expected format 'service/method'"
                 )
             }
             RunnerError::SymbolBuild(_) => write!(f, "RunnerError::SymbolBuild"),
             RunnerError::UnknownService { service, method } => write!(
                 f,
-                "Error running method '{service}/{method}', service '{service}' not found"
+                "Error running method '{service}/{method}': service '{service}' not found"
             ),
             RunnerError::UnknownMethod { service, method } => write!(
                 f,
-                "Error running method '{service}/{method}', service '{service}' does not include a method '{method}'"
+                "Error running method '{service}/{method}': service '{service}' does not include a method '{method}'"
             ),
             RunnerError::UnresolvedType {
                 service,
@@ -63,14 +69,22 @@ impl fmt::Display for RunnerError {
                 type_name,
             } => write!(
                 f,
-                "Error running method '{service}/{method}', type '{type_name}' not found"
+                "Error running method '{service}/{method}': type '{type_name}' not found"
             ),
 
             RunnerError::Runtime {
                 service,
                 method,
                 error,
-            } => write!(f, "Error running method '{service}/{method}', {error}"),
+            } => write!(f, "Error running method '{service}/{method}': {error}"),
+            RunnerError::InvalidRequestJsonBody {
+                service,
+                method,
+                error,
+            } => write!(
+                f,
+                "Error running method '{service}/{method}': {error}"
+            ),
         }
     }
 }

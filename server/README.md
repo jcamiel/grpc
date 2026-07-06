@@ -9,10 +9,10 @@ The server is intentionally minimal and **unary-only** — see [`../PLAN.md`](..
 
 | Service              | Method     | Purpose                                                                                                                            |
 |----------------------|------------|------------------------------------------------------------------------------------------------------------------------------------|
-| `helloworld.Greeter` | `SayHello` | Trivial baseline — `{name} → "Hello, {name}"`.                                                                                     |
-| `echo.Echo`          | `Echo`     | Echoes back a "kitchen-sink" `Payload` that exercises every protobuf wire type, plus `received_at: Timestamp`.                     |
-| `status.Status`      | `Fail`     | Returns the `grpc-status` code requested in the body, with the supplied `grpc-message`. `code=0` returns `FailReply` successfully. |
-|                      |            |                                                                                                                                    |
+| `helloworld.Greeter`         | `SayHello` | Trivial baseline — `{name} → "Hello, {name}"`.                                                                                     |
+| `echo.Echo`                  | `Echo`     | Echoes back a "kitchen-sink" `Payload` that exercises every protobuf wire type, plus `received_at: Timestamp`.                     |
+| `status.Status`              | `Fail`     | Returns the `grpc-status` code requested in the body, with the supplied `grpc-message`. `code=0` returns `FailReply` successfully. |
+| `operation.OperationService` | `Compute`  | Tiny math service. `ADD` returns the sum of `operands`; `MULTIPLY` returns `UNIMPLEMENTED` with a `google.rpc.Status` + `ErrorInfo` in the `grpc-status-details-bin` trailer (rich error model). |
 
 [gRPC server reflection](https://github.com/grpc/grpc/blob/master/doc/server-reflection.md) is enabled, so clients that
 support it (grpcurl, Postman, etc.) can introspect the schema without a local `.proto` file.
@@ -63,7 +63,7 @@ schema source Hurl will consume (see [`../PLAN.md`](../PLAN.md) §6.4). One `.pr
 that `.hurl` test files can reference just the schema they need:
 
 ```shell
-$ for p in helloworld echo status; do
+$ for p in helloworld echo status operation; do
   .venv/bin/python -m grpc_tools.protoc \
     -Iproto \
     --descriptor_set_out=proto/$p.protoset \
@@ -75,8 +75,23 @@ done
 `--include_imports` makes each `.protoset` self-contained — `echo.protoset` therefore bundles its `google.protobuf`
 well-known-type dependencies (`Timestamp`, `Duration`, `Any`) inline.
 
-This writes `proto/helloworld.protoset`, `proto/echo.protoset`, `proto/status.protoset`. Re-run any time the matching
-`.proto` files change.
+This writes `proto/helloworld.protoset`, `proto/echo.protoset`, `proto/status.protoset`, `proto/operation.protoset`.
+Re-run any time the matching `.proto` files change.
+
+There's also a stand-alone `proto/error_details.protoset` for `google.rpc.ErrorInfo` etc., compiled from the
+`googleapis-common-protos` package that `grpcio-status` pulls in. It's useful as a *second* `-protoset` alongside
+`operation.protoset` when you want grpcurl to decode the payload inside the `grpc-status-details-bin` trailer. Build
+it like this:
+
+```shell
+$ .venv/bin/python -m grpc_tools.protoc \
+  -I .venv/lib/python3.14/site-packages \
+  --descriptor_set_out=proto/error_details.protoset \
+  --include_imports \
+  google/rpc/error_details.proto
+```
+
+(Adjust the `python3.14` component to match your `.venv`.)
 
 ## Running the server
 
@@ -92,6 +107,7 @@ services:
   - helloworld.Greeter
   - echo.Echo
   - status.Status
+  - operation.OperationService
   - grpc.reflection.v1alpha.ServerReflection
 ```
 

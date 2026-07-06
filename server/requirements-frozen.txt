@@ -1,5 +1,7 @@
+googleapis-common-protos==1.75.0
 grpcio==1.80.0
 grpcio-reflection==1.80.0
+grpcio-status==1.80.0
 grpcio-tools==1.80.0
 protobuf==6.33.6
 setuptools==82.0.1

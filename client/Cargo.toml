@@ -9,4 +9,5 @@ edition = "2024"
 clap = { version = "4", features = ["derive"] }
 hurl = { path = "../../hurl/packages/hurl" }
 hurl_core = { path = "../../hurl/packages/hurl_core" }
+serde_json = "1.0.150"
 url = "2.5.8"

@@ -29,6 +29,14 @@ absolute path.
 | `status_not_found.sh`        | 5    | NOT_FOUND           |
 | `status_unauthenticated.sh`  | 16   | UNAUTHENTICATED     |
 
+### `operation.OperationService`
+
+| Script                            | Exercises                                                                                  |
+|-----------------------------------|--------------------------------------------------------------------------------------------|
+| `operation_add.sh`                | `ADD` — server returns `sum(operands)` in `OperationReply.result`.                         |
+| `operation_multiply.sh`           | `MULTIPLY` — server returns `UNIMPLEMENTED` with a rich `google.rpc.Status` + `ErrorInfo` detail attached via the `grpc-status-details-bin` trailer. grpcurl only has `operation.protoset`, so it shows the `@type` URL and the base64 `@value` but can't decode the inner `ErrorInfo`. |
+| `operation_multiply_decoded.sh`   | Same MULTIPLY call as above, but passes a **second** `-protoset` (`error_details.protoset`) that ships `google.rpc.ErrorInfo`. Now grpcurl fully decodes the details block — you can see `reason`, `domain`, `metadata`. Compare against `operation_multiply.sh` to see the difference the extra schema makes. |
+
 ### `echo.Echo` — one script per wire-format case
 
 | Script                   | Exercises                                                                           |

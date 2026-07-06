@@ -285,6 +285,7 @@ dependencies = [
  "clap",
  "hurl",
  "hurl_core",
+ "serde_json",
  "url",
 ]
 

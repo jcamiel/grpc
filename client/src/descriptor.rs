@@ -413,6 +413,37 @@ impl FieldDescriptorProto {
     }
 }
 
+impl FieldDescriptorProto {
+    /// Does this field have **explicit presence** in proto3? i.e. can a decoder distinguish "field
+    /// was sent (even at its default value)" from "no field with this tag appeared on the wire"?
+    ///
+    /// Three sources of explicit presence in proto3:
+    /// 1. Singular message-typed fields — always.
+    /// 2. Fields inside a `oneof` — covers both user-declared oneofs and the synthetic single-member
+    ///      oneof that `optional` generates.
+    /// 3. Nothing else. Bare scalars / enums, repeated, and map fields have **implicit** presence:
+    /// default value is indistinguishable from unset.
+    pub fn has_explicit_presence(&self) -> bool {
+        // The `label == Repeated` check must come first, because in the descriptor form a `map<K, V>`
+        // field looks like a `repeated <Entry>` message; checking `type == Message` first would misidentify
+        // maps as having presence.
+        if self.label == Some(FieldLabel::Repeated) {
+            return false;
+        }
+        if self.r#type == Some(FieldType::Message) {
+            return true;
+        }
+        // Optional field with explicit presence.
+        if self.proto3_optional == Some(true) {
+            return true;
+        }
+        if self.oneof_index.is_some() {
+            return true;
+        }
+        false
+    }
+}
+
 /// Describes an enum type.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L339>

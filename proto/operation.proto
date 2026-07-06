@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package operation;
+
+// A tiny math service used to exercise gRPC's "rich" error model:
+// a MULTIPLY request is deliberately rejected with google.rpc.Status
+// carrying an ErrorInfo detail via the `grpc-status-details-bin` trailer.
+service OperationService {
+  rpc Compute (OperationRequest) returns (OperationReply);
+}
+
+message OperationRequest {
+  OperationType operation = 1;
+  repeated int64 operands = 2;
+}
+
+message OperationReply {
+  int64 result = 1;
+}
+
+enum OperationType {
+  OPERATION_TYPE_UNSPECIFIED = 0;
+  ADD                       = 1;
+  MULTIPLY                  = 2;
+}

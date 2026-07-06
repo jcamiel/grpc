@@ -1,9 +1,8 @@
+use super::client::RunnerError;
 use super::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
-use crate::client::RunnerError;
-use crate::pool::DescriptorPool;
-use crate::request_body::RequestBody;
-use std::fs;
-use std::path::Path;
+use super::pool::DescriptorPool;
+use super::request_body::{RequestBody, RequestBodyError};
+
 use url::Url;
 
 /// Represents a gRPC request.
@@ -50,25 +49,25 @@ impl<'fds> Request<'fds> {
             .map_err(RunnerError::SymbolBuild)?;
 
         // Get service, method, input and output message type.
-        let service =
+        let service = symbols
+            .find_service(&svc_fqn)
+            .ok_or(RunnerError::UnknownService {
+                service: svc_fqn.clone(),
+                method: method_name.clone(),
+            })?;
+
+        let method =
             symbols
-                .find_service(&svc_fqn)
-                .ok_or_else(|| RunnerError::UnknownService {
+                .find_method(service, &method_name)
+                .ok_or(RunnerError::UnknownMethod {
                     service: svc_fqn.clone(),
                     method: method_name.clone(),
                 })?;
 
-        let method = symbols.find_method(service, &method_name).ok_or_else(|| {
-            RunnerError::UnknownMethod {
-                service: svc_fqn.clone(),
-                method: method_name.clone(),
-            }
-        })?;
-
         let input_message =
             symbols
                 .resolve_method_input(method)
-                .ok_or_else(|| RunnerError::UnresolvedType {
+                .ok_or(RunnerError::UnresolvedType {
                     service: svc_fqn.clone(),
                     method: method_name.clone(),
                     type_name: method.input_type.clone().unwrap_or_default(),
@@ -76,14 +75,19 @@ impl<'fds> Request<'fds> {
         let output_message =
             symbols
                 .resolve_method_output(method)
-                .ok_or_else(|| RunnerError::UnresolvedType {
+                .ok_or(RunnerError::UnresolvedType {
                     service: svc_fqn.clone(),
                     method: method_name.clone(),
                     type_name: method.output_type.clone().unwrap_or_default(),
                 })?;
 
         // Parse the body
-        let request_body = RequestBody::from_bytes(body);
+        let request_body =
+            RequestBody::from_bytes(body).map_err(|e| RunnerError::InvalidRequestJsonBody {
+                service: svc_fqn.clone(),
+                method: method_name.clone(),
+                error: e.to_string(),
+            })?;
 
         let request = Request {
             service_name: svc_fqn,
