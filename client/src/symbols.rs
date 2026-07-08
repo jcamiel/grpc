@@ -50,8 +50,8 @@ impl fmt::Display for Symbol<'_> {
 
 impl fmt::Display for SymbolTable<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        // HashMap iteration order is non-deterministic; sort by FQN so the
-        // output is stable across runs (useful for snapshot tests / diffing).
+        // HashMap iteration order is non-deterministic; sort by FQN so the output is stable
+        // across runs (useful for snapshot tests / diffing).
         let mut entries: Vec<(&String, &Symbol)> = self.by_fqn.iter().collect();
         entries.sort_by(|a, b| a.0.cmp(b.0));
 
@@ -81,15 +81,14 @@ impl<'fds> SymbolTable<'fds> {
     pub fn build(fds: &'fds FileDescriptorSet) -> Result<Self, SymbolError> {
         let mut by_fqn = HashMap::new();
         for file in &fds.files {
-            let pkg = file.package.as_deref().unwrap_or("");
             for msg in &file.message_types {
-                add_message(&mut by_fqn, pkg, msg)?;
+                add_message(&mut by_fqn, msg)?;
             }
             for enm in &file.enum_types {
-                add_enum(&mut by_fqn, pkg, enm)?;
+                add_enum(&mut by_fqn, enm)?;
             }
             for svc in &file.services {
-                add_service(&mut by_fqn, pkg, svc)?;
+                add_service(&mut by_fqn, svc)?;
             }
         }
         Ok(SymbolTable { by_fqn })
@@ -97,9 +96,8 @@ impl<'fds> SymbolTable<'fds> {
 }
 
 impl<'fds> SymbolTable<'fds> {
-    /// Look up a service by FQN. Accepts both `.pkg.Service` (leading-dot, what
-    /// `protoc` emits in `type_name` / `input_type` / `output_type`) and the
-    /// dotless `pkg.Service` form.
+    /// Look up a service by FQN. Accepts both `.pkg.Service` (leading-dot, what `protoc` emits in
+    /// `type_name` / `input_type` / `output_type`) and the dotless `pkg.Service` form.
     pub fn find_service(&self, fqn: &str) -> Option<&'fds ServiceDescriptorProto> {
         match self.by_fqn.get(normalize(fqn))? {
             Symbol::Service(svc) => Some(svc),
@@ -123,9 +121,9 @@ impl<'fds> SymbolTable<'fds> {
         }
     }
 
-    /// Look up a method on `service` by its local name. Doesn't consult the
-    /// symbol table — the service descriptor already carries its methods —
-    /// but lives here for API symmetry with the other `find_*` lookups.
+    /// Look up a method on `service` by its local name.
+    ///
+    /// Doesn't consult the symbol table, the service descriptor already carries its methods.
     pub fn find_method(
         &self,
         service: &'fds ServiceDescriptorProto,
@@ -151,60 +149,41 @@ impl<'fds> SymbolTable<'fds> {
     }
 }
 
-/// Strip the leading `.` from an absolute FQN. `protoc` emits all type
-/// references in absolute form (`.pkg.Type`); the symbol table keys are stored
-/// without the dot, so we normalize at lookup time and let callers pass either.
+/// Strip the leading `.` from an absolute FQN. `protoc` emits all type references in absolute form
+/// (`.pkg.Type`); the symbol table keys are stored without the dot, so we normalize at lookup time
+/// and let callers pass either.
 fn normalize(fqn: &str) -> &str {
     fqn.strip_prefix('.').unwrap_or(fqn)
 }
 
 /// Utilities to add entities to the hash map.
 
-fn join(parent: &str, name: &str) -> String {
-    if parent.is_empty() {
-        name.to_string()
-    } else {
-        format!("{parent}.{name}")
-    }
-}
-
 fn add_message<'fds>(
     map: &mut HashMap<String, Symbol<'fds>>,
-    parent: &str,
     msg: &'fds DescriptorProto,
 ) -> Result<(), SymbolError> {
-    let Some(name) = &msg.name else { return Ok(()) };
-    let fqn = join(parent, name);
-    insert(map, fqn.clone(), Symbol::Message(msg))?;
+    insert(map, msg.fqn.clone(), Symbol::Message(msg))?;
     for nested in &msg.nested_types {
-        add_message(map, &fqn, nested)?;
+        add_message(map, nested)?;
     }
     for en in &msg.enum_types {
-        add_enum(map, &fqn, en)?;
+        add_enum(map, en)?;
     }
     Ok(())
 }
 
 fn add_enum<'fds>(
     map: &mut HashMap<String, Symbol<'fds>>,
-    parent: &str,
     enm: &'fds EnumDescriptorProto,
 ) -> Result<(), SymbolError> {
-    let Some(name) = &enm.name else { return Ok(()) };
-    let enm_fqn = join(parent, name);
-    insert(map, enm_fqn.clone(), Symbol::Enum(enm))?;
-    Ok(())
+    insert(map, enm.fqn.clone(), Symbol::Enum(enm))
 }
 
 fn add_service<'fds>(
     map: &mut HashMap<String, Symbol<'fds>>,
-    parent: &str,
     svc: &'fds ServiceDescriptorProto,
 ) -> Result<(), SymbolError> {
-    let Some(name) = &svc.name else { return Ok(()) };
-    let svc_fqn = join(parent, name);
-    insert(map, svc_fqn.clone(), Symbol::Service(svc))?;
-    Ok(())
+    insert(map, svc.fqn.clone(), Symbol::Service(svc))
 }
 
 fn insert<'fds>(

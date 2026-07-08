@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use super::parser;
 use super::parser::ParserError;
 use super::reader::Reader;
+use super::resolve;
 
 /// A decoded `google.protobuf.FileDescriptorSet`.
 ///
@@ -33,7 +34,21 @@ pub struct FileDescriptorSet {
 
 impl FileDescriptorSet {
     /// Decodes a serialized `FileDescriptorSet` from raw bytes.
-    pub fn parse(bytes: &[u8]) -> Result<FileDescriptorSet, ParserError> {
+    ///
+    /// Runs the wire decoder first (scope-agnostic), then a single [`resolve::resolve_fqns`] pass
+    /// to fill in every `fqn` field top-down. The returned set has fully-resolved FQNs on every
+    /// named descriptor.
+    pub fn from(bytes: &[u8]) -> Result<FileDescriptorSet, ParserError> {
+        let mut set = Self::parse(bytes)?;
+        resolve::resolve_fqns(&mut set);
+        Ok(set)
+    }
+
+    /// Decodes a serialized `FileDescriptorSet` from raw bytes, without resolving fully-qualified-name.
+    ///
+    /// The pure wire-decoding half of [`Self::from`], with no scope resolution. Descriptors returned
+    /// from here have `fqn` at its default (empty string).
+    fn parse(bytes: &[u8]) -> Result<FileDescriptorSet, ParserError> {
         let mut reader = Reader::new(bytes);
         let entity = "FileDescriptorSet";
         let mut files = Vec::new();
@@ -112,6 +127,7 @@ impl FileDescriptorProto {
                 _ => reader.skip(wire_type)?,
             }
         }
+
         Ok(FileDescriptorProto {
             name,
             package,
@@ -128,6 +144,9 @@ impl FileDescriptorProto {
 #[derive(Clone, Debug, Default)]
 pub struct DescriptorProto {
     pub name: Option<String>,
+    /// Fully-qualified name (e.g. `echo.Payload`, `echo.Payload.Priority`), computed at parse time
+    /// from the enclosing scope's FQN + this message's local `name`. Not present on the wire.
+    pub fqn: String,
     pub fields: Vec<FieldDescriptorProto>,
     /// Nested types are used for nested types inside message and map types.
     pub nested_types: Vec<DescriptorProto>,
@@ -183,8 +202,10 @@ impl DescriptorProto {
                 _ => reader.skip(wire_type)?,
             }
         }
+
         Ok(DescriptorProto {
             name,
+            fqn: String::new(),
             fields,
             nested_types,
             enum_types,
@@ -203,18 +224,17 @@ pub struct FieldDescriptorProto {
     pub number: Option<u32>,
     pub label: Option<FieldLabel>,
     pub r#type: Option<FieldType>,
-    /// For message and enum types, this is the name of the type.  If the name
-    /// starts with a '.', it is fully-qualified.  Otherwise, C++-like scoping
-    /// rules are used to find the type (i.e. first the nested types within this
-    /// message are searched, then within the parent, on up to the root
-    /// namespace).
+    /// For message and enum types, this is the name of the type.  If the name starts with a '.',
+    /// it is fully-qualified.  Otherwise, C++-like scoping rules are used to find the type
+    /// (i.e. first the nested types within this message are searched, then within the parent,
+    /// on up to the root namespace).
     pub type_name: Option<String>,
     pub oneof_index: Option<u32>,
     pub proto3_optional: Option<bool>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum FieldType {
+pub enum FieldType {
     Double = 1,
     Float = 2,
     Int64 = 3,
@@ -294,7 +314,7 @@ impl fmt::Display for FieldType {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum FieldLabel {
+pub enum FieldLabel {
     Optional = 1,
     Repeated = 3,
     // The required label should not be supported as we target protobuf3 syntax.
@@ -413,43 +433,14 @@ impl FieldDescriptorProto {
     }
 }
 
-impl FieldDescriptorProto {
-    /// Does this field have **explicit presence** in proto3? i.e. can a decoder distinguish "field
-    /// was sent (even at its default value)" from "no field with this tag appeared on the wire"?
-    ///
-    /// Three sources of explicit presence in proto3:
-    /// 1. Singular message-typed fields — always.
-    /// 2. Fields inside a `oneof` — covers both user-declared oneofs and the synthetic single-member
-    ///      oneof that `optional` generates.
-    /// 3. Nothing else. Bare scalars / enums, repeated, and map fields have **implicit** presence:
-    /// default value is indistinguishable from unset.
-    pub fn has_explicit_presence(&self) -> bool {
-        // The `label == Repeated` check must come first, because in the descriptor form a `map<K, V>`
-        // field looks like a `repeated <Entry>` message; checking `type == Message` first would misidentify
-        // maps as having presence.
-        if self.label == Some(FieldLabel::Repeated) {
-            return false;
-        }
-        if self.r#type == Some(FieldType::Message) {
-            return true;
-        }
-        // Optional field with explicit presence.
-        if self.proto3_optional == Some(true) {
-            return true;
-        }
-        if self.oneof_index.is_some() {
-            return true;
-        }
-        false
-    }
-}
-
 /// Describes an enum type.
 ///
 /// See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L339>
 #[derive(Clone, Debug, Default)]
 pub struct EnumDescriptorProto {
     pub name: Option<String>,
+    /// Fully-qualified name.
+    pub fqn: String,
     pub values: Vec<EnumValueDescriptorProto>,
 }
 
@@ -475,7 +466,11 @@ impl EnumDescriptorProto {
                 _ => reader.skip(wire_type)?,
             }
         }
-        Ok(EnumDescriptorProto { name, values })
+        Ok(EnumDescriptorProto {
+            name,
+            fqn: String::new(),
+            values,
+        })
     }
 }
 
@@ -547,6 +542,8 @@ impl EnumValueDescriptorProto {
 #[derive(Clone, Debug, Default)]
 pub struct ServiceDescriptorProto {
     pub name: Option<String>,
+    /// Fully-qualified name (e.g. `helloworld.Greeter`).
+    pub fqn: String,
     pub methods: Vec<MethodDescriptorProto>,
 }
 
@@ -566,13 +563,16 @@ impl ServiceDescriptorProto {
                 }
                 2 => {
                     let bytes = parser::message("method", entity, &mut reader, wire_type)?;
-                    let method = MethodDescriptorProto::parse(bytes)?;
-                    methods.push(method);
+                    methods.push(MethodDescriptorProto::parse(bytes)?);
                 }
                 _ => reader.skip(wire_type)?,
             }
         }
-        Ok(ServiceDescriptorProto { name, methods })
+        Ok(ServiceDescriptorProto {
+            name,
+            fqn: String::new(),
+            methods,
+        })
     }
 }
 
@@ -582,6 +582,8 @@ impl ServiceDescriptorProto {
 #[derive(Clone, Debug, Default)]
 pub struct MethodDescriptorProto {
     pub name: Option<String>,
+    /// Fully-qualified name (e.g. `helloworld.Greeter.SayHello`).
+    pub fqn: String,
     /// Input and output type names. These are resolved in the same way as
     /// FieldDescriptorProto.type_name, but must refer to a message type.
     pub input_type: Option<String>,
@@ -630,6 +632,7 @@ impl MethodDescriptorProto {
         }
         Ok(MethodDescriptorProto {
             name,
+            fqn: String::new(),
             input_type,
             output_type,
             client_streaming,

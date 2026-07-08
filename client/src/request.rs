@@ -1,9 +1,26 @@
+/*
+ * Hurl (https://hurl.dev)
+ * Copyright (C) 2026 Orange
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+use url::Url;
+
 use super::client::RunnerError;
 use super::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
 use super::pool::DescriptorPool;
-use super::request_body::{RequestBody, RequestBodyError};
-
-use url::Url;
+use super::request_body::RequestBody;
 
 /// Represents a gRPC request.
 #[derive(Debug)]
@@ -47,6 +64,7 @@ impl<'fds> Request<'fds> {
         let symbols = descriptor_pool
             .symbols()
             .map_err(RunnerError::SymbolBuild)?;
+        println!("{:#?}", symbols);
 
         // Get service, method, input and output message type.
         let service = symbols
@@ -82,12 +100,13 @@ impl<'fds> Request<'fds> {
                 })?;
 
         // Parse the body
-        let request_body =
-            RequestBody::from_bytes(body).map_err(|e| RunnerError::InvalidRequestJsonBody {
+        let request_body = RequestBody::from_bytes(body, input_message).map_err(|error| {
+            RunnerError::InvalidRequestBody {
                 service: svc_fqn.clone(),
                 method: method_name.clone(),
-                error: e.to_string(),
-            })?;
+                error,
+            }
+        })?;
 
         let request = Request {
             service_name: svc_fqn,

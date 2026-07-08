@@ -1,3 +1,20 @@
+/*
+ * Hurl (https://hurl.dev)
+ * Copyright (C) 2026 Orange
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 use std::fmt::Formatter;
 use std::path::Path;
 use std::{fmt, fs};
@@ -10,6 +27,7 @@ use url::Url;
 
 use super::pool::DescriptorPool;
 use super::request::Request;
+use super::request_body::RequestBodyError;
 use super::symbols::SymbolError;
 
 pub struct Client {}
@@ -30,11 +48,10 @@ pub enum RunnerError {
         method: String,
         type_name: String,
     },
-    /// The provided request body is not an expected JSON
-    InvalidRequestJsonBody {
+    InvalidRequestBody {
         service: String,
         method: String,
-        error: String,
+        error: RequestBodyError,
     },
     /// A runtime error
     Runtime {
@@ -77,14 +94,11 @@ impl fmt::Display for RunnerError {
                 method,
                 error,
             } => write!(f, "Error running method '{service}/{method}': {error}"),
-            RunnerError::InvalidRequestJsonBody {
+            RunnerError::InvalidRequestBody {
                 service,
                 method,
                 error,
-            } => write!(
-                f,
-                "Error running method '{service}/{method}': {error}"
-            ),
+            } => write!(f, "Error running method '{service}/{method}': {error}"),
         }
     }
 }
@@ -169,6 +183,7 @@ mod tests {
         DescriptorProto, FileDescriptorProto, FileDescriptorSet, MethodDescriptorProto,
         ServiceDescriptorProto,
     };
+    use crate::resolve::resolve_fqns;
 
     // Builders to construct a `FileDescriptorSet` by hand for tests.
     fn message(name: &str) -> DescriptorProto {
@@ -191,6 +206,7 @@ mod tests {
         ServiceDescriptorProto {
             name: Some(name.to_string()),
             methods,
+            ..Default::default()
         }
     }
 
@@ -209,7 +225,9 @@ mod tests {
     }
 
     fn pool(files: Vec<FileDescriptorProto>) -> DescriptorPool {
-        DescriptorPool::from_descriptor_set(FileDescriptorSet { files })
+        let mut ds = FileDescriptorSet { files };
+        resolve_fqns(&mut ds);
+        DescriptorPool::from_descriptor_set(ds)
     }
 
     fn url(s: &str) -> Url {
@@ -220,8 +238,6 @@ mod tests {
         vec![]
     }
 
-    /// A descriptor set with one fully-wired service: `pkg.Greeter/SayHello`
-    /// taking `pkg.HelloRequest` and returning `pkg.HelloReply`.
     fn greeter_pool() -> DescriptorPool {
         pool(vec![file(
             "pkg",
@@ -242,14 +258,14 @@ mod tests {
         let err = Client::new().run(p.clone(), u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error running method, URL path 'pkg.Greeter/' is not in expected format 'service/method'"
+            "Error running method: URL path 'pkg.Greeter/' is not in expected format 'service/method'"
         );
 
         let u = url("http://localhost");
         let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error running method, URL path '' is not in expected format 'service/method'"
+            "Error running method: URL path '' is not in expected format 'service/method'"
         );
     }
 
@@ -263,7 +279,7 @@ mod tests {
         let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error running method 'pkg.Greeter/SayHello', service 'pkg.Greeter' not found"
+            "Error running method 'pkg.Greeter/SayHello': service 'pkg.Greeter' not found"
         )
     }
 
@@ -276,7 +292,7 @@ mod tests {
         let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error running method 'pkg.Foo/GetFoo', service 'pkg.Foo' not found"
+            "Error running method 'pkg.Foo/GetFoo': service 'pkg.Foo' not found"
         )
     }
 
@@ -289,7 +305,7 @@ mod tests {
         let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error running method 'pkg.Greeter/SayHi', service 'pkg.Greeter' does not include a method 'SayHi'"
+            "Error running method 'pkg.Greeter/SayHi': service 'pkg.Greeter' does not include a method 'SayHi'"
         )
     }
 
@@ -310,7 +326,7 @@ mod tests {
         let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error running method 'pkg.Greeter/SayHello', type '.pkg.Missing' not found"
+            "Error running method 'pkg.Greeter/SayHello': type '.pkg.Missing' not found"
         )
     }
 
@@ -331,7 +347,7 @@ mod tests {
         let err = Client::new().run(p, u, &b).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error running method 'pkg.Greeter/SayHello', type '.pkg.Missing' not found"
+            "Error running method 'pkg.Greeter/SayHello': type '.pkg.Missing' not found"
         )
     }
 }

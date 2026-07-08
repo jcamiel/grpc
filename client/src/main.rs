@@ -17,11 +17,13 @@
  */
 mod client;
 mod descriptor;
+mod encoder;
 mod parser;
 mod pool;
 mod reader;
 mod request;
 mod request_body;
+mod resolve;
 mod symbols;
 
 use std::io::{self, Read};
@@ -59,6 +61,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    println!("{:#?}", descriptor_pool);
 
     // Read the request body as a UTF-8 string from standard input.
     let mut body = String::new();
