@@ -43,7 +43,7 @@ use pool::DescriptorPool;
 #[derive(Parser, Debug)]
 #[command(name = "client", version, about, long_about = None)]
 struct Args {
-    url: String,
+    url: Option<String>,
     /// Path to a serialized `FileDescriptorSet`
     /// (output of `protoc --descriptor_set_out=...`, conventionally `.protoset`).
     #[arg(long, value_name = "PATH")]
@@ -63,6 +63,11 @@ fn main() -> ExitCode {
     };
     println!("{:#?}", descriptor_pool);
 
+    // Without a URL there is nothing to send: print the decoded pool and exit.
+    let Some(url) = args.url else {
+        return ExitCode::SUCCESS;
+    };
+
     // Read the request body as a UTF-8 string from standard input.
     let mut body = String::new();
     if let Err(e) = io::stdin().read_to_string(&mut body) {
@@ -71,7 +76,7 @@ fn main() -> ExitCode {
     }
 
     let client = Client::new();
-    let url = Url::parse(&args.url).unwrap();
+    let url = Url::parse(&url).unwrap();
     let _r = match client.run(descriptor_pool, url, body.as_bytes()) {
         Ok(r) => r,
         Err(e) => {
