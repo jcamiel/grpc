@@ -22,7 +22,7 @@ use std::fmt::Formatter;
 use serde_json::Value;
 
 use super::Request;
-use super::body::{RequestBody, RequestBodyError};
+use super::body::RequestBody;
 use crate::schema::descriptor::{FieldDescriptorProto, FieldLabel, FieldType};
 use crate::schema::symbols::SymbolTable;
 use crate::wire::writer::Writer;
