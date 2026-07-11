@@ -124,7 +124,7 @@ impl Field {
             return Ok(None);
         }
 
-        match field_type {
+        let field = match field_type {
             FieldType::Double => todo!(),
             FieldType::Float => todo!(),
             FieldType::Int64 => todo!(),
@@ -133,95 +133,112 @@ impl Field {
             FieldType::Fixed64 => todo!(),
             FieldType::Fixed32 => todo!(),
             FieldType::Bool => todo!(),
-            FieldType::String => match value {
-                Value::String(value) => {
-                    let kind = FieldKind::String(value);
-                    Ok(Some(Field { kind, number }))
-                }
-                actual => {
-                    let expected = "string".to_string();
-                    let actual = type_of_value(&actual).to_string();
-                    let err = FieldError::InvalidJsonInputType {
-                        field: name,
-                        expected,
-                        actual,
-                    };
-                    Err(err)
-                }
-            },
+            FieldType::String => Self::try_new_string(value, &name, number),
             FieldType::Group => todo!(),
-            FieldType::Message => {
-                assert!(descriptor.type_name.is_some());
-                match value {
-                    // Do we need to distinguish between message and map ?
-                    Value::Object(value) => {
-                        let type_name = descriptor.type_name.as_deref().unwrap();
-                        let msg_descriptor =
-                            symbols
-                                .find_message(type_name)
-                                .ok_or(FieldError::UnresolvedType {
-                                    field: name,
-                                    type_name: type_name.to_string(),
-                                })?;
-                        let mut map = HashMap::new();
-                        for (field_name, field_value) in value.into_iter() {
-                            let field_desc = msg_descriptor
-                                .fields
-                                .iter()
-                                .find(|f| f.name.as_deref() == Some(&field_name))
-                                .ok_or(FieldError::UnknownJsonField {
-                                    field: field_name.clone(),
-                                    type_name: msg_descriptor.fqn.to_string(),
-                                })?;
-                            let field = Field::try_new(field_desc, symbols, field_value)?;
-                            if let Some(field) = field {
-                                map.insert(field_name, field);
-                            }
-                        }
-                        let kind = FieldKind::Message(map);
-                        let field = Field { kind, number };
-                        Ok(Some(field))
-                    }
-                    actual => {
-                        let expected = "object".to_string();
-                        let actual = type_of_value(&actual).to_string();
-                        let err = FieldError::InvalidJsonInputType {
-                            field: name,
-                            expected,
-                            actual,
-                        };
-                        Err(err)
-                    }
-                }
-            }
+            FieldType::Message => Self::try_new_message(descriptor, symbols, value, &name, number),
             FieldType::Bytes => todo!(),
             FieldType::UInt32 => todo!(),
             FieldType::Enum => todo!(),
-            FieldType::SFixed32 => {
-                let Value::Number(n) = value else {
-                    return Err(FieldError::InvalidJsonInputType {
-                        field: name,
-                        expected: "integer".to_string(),
-                        actual: type_of_value(&value).to_string(),
-                    });
-                };
-                let Some(v) = n.as_i64().and_then(|v| i32::try_from(v).ok()) else {
-                    return Err(FieldError::JsonNumberOutOfRange {
-                        field: name,
-                        value: n.to_string(),
-                    });
-                };
-                Ok(Some(Field {
-                    kind: FieldKind::SFixed32(v),
-                    number,
-                }))
-            }
+            FieldType::SFixed32 => Self::try_new_sfixed32(&value, name, number),
             FieldType::SFixed64 => todo!(),
             FieldType::SInt32 => todo!(),
             FieldType::SInt64 => todo!(),
+        }?;
+        Ok(Some(field))
+    }
+
+    fn try_new_sfixed32(value: &Value, name: String, number: u32) -> Result<Field, FieldError> {
+        let Value::Number(n) = value else {
+            return Err(FieldError::InvalidJsonInputType {
+                field: name,
+                expected: "integer".to_string(),
+                actual: type_of_value(&value).to_string(),
+            });
+        };
+        let Some(v) = n.as_i64().and_then(|v| i32::try_from(v).ok()) else {
+            return Err(FieldError::JsonNumberOutOfRange {
+                field: name,
+                value: n.to_string(),
+            });
+        };
+        Ok(Field {
+            kind: FieldKind::SFixed32(v),
+            number,
+        })
+    }
+
+    fn try_new_message(
+        descriptor: &FieldDescriptorProto,
+        symbols: &SymbolTable,
+        value: Value,
+        name: &str,
+        number: u32,
+    ) -> Result<Field, FieldError> {
+        assert!(descriptor.type_name.is_some());
+        match value {
+            // Do we need to distinguish between message and map ?
+            Value::Object(value) => {
+                let type_name = descriptor.type_name.as_deref().unwrap();
+                let msg_descriptor =
+                    symbols
+                        .find_message(type_name)
+                        .ok_or(FieldError::UnresolvedType {
+                            field: name.to_string(),
+                            type_name: type_name.to_string(),
+                        })?;
+                let mut map = HashMap::new();
+                for (field_name, field_value) in value.into_iter() {
+                    let field_desc = msg_descriptor
+                        .fields
+                        .iter()
+                        .find(|f| f.name.as_deref() == Some(&field_name))
+                        .ok_or(FieldError::UnknownJsonField {
+                            field: field_name.clone(),
+                            type_name: msg_descriptor.fqn.to_string(),
+                        })?;
+                    let field = Field::try_new(field_desc, symbols, field_value)?;
+                    if let Some(field) = field {
+                        map.insert(field_name, field);
+                    }
+                }
+                let kind = FieldKind::Message(map);
+                let field = Field { kind, number };
+                Ok(field)
+            }
+            actual => {
+                let expected = "object".to_string();
+                let actual = type_of_value(&actual).to_string();
+                let err = FieldError::InvalidJsonInputType {
+                    field: name.to_string(),
+                    expected,
+                    actual,
+                };
+                Err(err)
+            }
         }
     }
 
+    fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldError> {
+        match value {
+            Value::String(value) => {
+                let kind = FieldKind::String(value);
+                Ok(Field { kind, number })
+            }
+            actual => {
+                let expected = "string".to_string();
+                let actual = type_of_value(&actual).to_string();
+                let err = FieldError::InvalidJsonInputType {
+                    field: name.to_string(),
+                    expected,
+                    actual,
+                };
+                Err(err)
+            }
+        }
+    }
+}
+
+impl Field {
     pub fn encode(&self, writer: &mut Writer) {
         match &self.kind {
             FieldKind::String(value) => {
