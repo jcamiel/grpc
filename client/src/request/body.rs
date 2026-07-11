@@ -101,7 +101,9 @@ impl RequestBody {
                 Field::try_new(field_desc, value).map_err(|e| RequestBodyError::InvalidField {
                     error: e.to_string(),
                 })?;
-            fields.push(field);
+            if let Some(field) = field {
+                fields.push(field);
+            }
         }
 
         Ok(RequestBody { fields })

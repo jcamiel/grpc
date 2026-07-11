@@ -21,8 +21,8 @@ use std::fmt::Formatter;
 
 use serde_json::Value;
 
-use crate::request::Request;
-use crate::request::body::RequestBody;
+use super::Request;
+use super::body::RequestBody;
 use crate::schema::descriptor::{FieldDescriptorProto, FieldLabel, FieldType};
 use crate::wire::writer::Writer;
 
@@ -76,14 +76,17 @@ impl fmt::Display for FieldError {
                 actual,
             } => write!(
                 f,
-                "bad input for field '{name}' expecting '{expected}' actual '{actual}'"
+                "bad input for field '{name}' expecting JSON {expected} actual {actual}"
             ),
         }
     }
 }
 
 impl Field {
-    pub fn try_new(descriptor: &FieldDescriptorProto, value: Value) -> Result<Self, FieldError> {
+    pub fn try_new(
+        descriptor: &FieldDescriptorProto,
+        value: Value,
+    ) -> Result<Option<Self>, FieldError> {
         // TODO: check validity of descripto.label
         assert!(descriptor.name.is_some());
         assert!(!matches!(descriptor.label.unwrap(), FieldLabel::Required));
@@ -93,6 +96,11 @@ impl Field {
         let name = descriptor.name.clone().unwrap();
         let field_type = descriptor.r#type.unwrap();
         let number = descriptor.number.unwrap();
+
+        // If the user is explicitly sending a null field, we considered it absent from the wire.
+        if matches!(value, Value::Null) {
+            return Ok(None);
+        }
 
         match field_type {
             FieldType::Double => todo!(),
@@ -106,8 +114,9 @@ impl Field {
             FieldType::String => match value {
                 Value::String(value) => {
                     let kind = FieldKind::String(value);
-                    Ok(Field { kind, number })
+                    Ok(Some(Field { kind, number }))
                 }
+                Value::Null => Ok(None),
                 actual => {
                     let expected = "string".to_string();
                     let actual = type_of_value(&actual).to_string();
@@ -120,7 +129,22 @@ impl Field {
                 }
             },
             FieldType::Group => todo!(),
-            FieldType::Message => todo!(),
+            FieldType::Message => match value {
+                Value::Object(value) => {
+                    todo!()
+                }
+                Value::Null => Ok(None),
+                actual => {
+                    let expected = "object".to_string();
+                    let actual = type_of_value(&actual).to_string();
+                    let err = FieldError::InvalidInputType {
+                        expected,
+                        actual,
+                        name,
+                    };
+                    Err(err)
+                }
+            },
             FieldType::Bytes => todo!(),
             FieldType::UInt32 => todo!(),
             FieldType::Enum => todo!(),

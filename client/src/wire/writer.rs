@@ -15,22 +15,20 @@
  * limitations under the License.
  *
  */
-use super::{BytePos, WireType};
+use super::WireType;
 
 pub struct Writer {
     output: Vec<u8>,
-    pos: BytePos,
 }
 
 impl Writer {
     pub fn new() -> Self {
         let output = Vec::new();
-        let pos = BytePos(0);
-        Writer { output, pos }
+        Writer { output }
     }
 
-    fn pos(&self) -> BytePos {
-        self.pos
+    fn len(&self) -> usize {
+        self.output.len()
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -39,7 +37,6 @@ impl Writer {
 
     fn write_byte(&mut self, n: u8) {
         self.output.push(n);
-        self.pos.0 += 1;
     }
 
     fn write_bytes(&mut self, value: &[u8]) {
@@ -64,9 +61,6 @@ impl Writer {
         self.write_varint(value.len() as u64);
         self.write_bytes(value.as_bytes());
     }
-}
-
-impl Writer {
 
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
@@ -76,20 +70,20 @@ impl Writer {
     }
 
     pub fn end_grpc_frame(&mut self) {
-        let payload_len = (self.pos.0 - 5) as u32;
+        let payload_len = (self.len() - 5) as u32;
         self.output[1..5].copy_from_slice(&payload_len.to_be_bytes());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::wire::writer::Writer;
+    use super::Writer;
 
     #[test]
     fn write_varint_2_bytes() {
         let mut w = Writer::new();
         w.write_varint(150);
-        assert_eq!(w.pos().0, 2);
+        assert_eq!(w.len(), 2);
         assert_eq!(w.bytes(), [0b1001_0110, 0b0000_0001]);
     }
 
