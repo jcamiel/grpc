@@ -66,6 +66,21 @@ impl Writer {
     }
 }
 
+impl Writer {
+
+    pub fn begin_grpc_frame(&mut self) {
+        // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
+        // The length will be patched by [`Self::end_grpc_frame`].
+        self.write_byte(0);
+        self.write_bytes(&[0; 4]);
+    }
+
+    pub fn end_grpc_frame(&mut self) {
+        let payload_len = (self.pos.0 - 5) as u32;
+        self.output[1..5].copy_from_slice(&payload_len.to_be_bytes());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::wire::writer::Writer;
@@ -85,6 +100,18 @@ mod tests {
         assert_eq!(
             w.bytes(),
             [0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]
+        );
+    }
+
+    #[test]
+    fn grpc_frame_wraps_payload() {
+        let mut w = Writer::new();
+        w.begin_grpc_frame();
+        w.write_string_field(1, "bob");
+        w.end_grpc_frame();
+        assert_eq!(
+            w.bytes(),
+            [0x00, 0x00, 0x00, 0x00, 0x05, 0x0a, 0x03, 0x62, 0x6f, 0x62]
         );
     }
 }

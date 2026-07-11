@@ -119,9 +119,11 @@ impl Client {
         // Constructs the gRPC request
         let request = Request::try_from(&descriptor_pool, &url, body)?;
 
-        // Write the request body to file so we can inject it in Hurl
+        // Write the request body to file so we can inject it in Hurl.
         let mut writer = Writer::new();
+        writer.begin_grpc_frame();
         request.body().encode(&mut writer);
+        writer.end_grpc_frame();
 
         let body_path = Path::new("build/body.in");
         let body = writer.bytes();
