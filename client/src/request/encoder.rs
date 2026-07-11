@@ -73,7 +73,7 @@ pub enum FieldError {
     /// The input JSON has a `field` which is not present in the type name `type_name`.
     UnknownJsonField { field: String, type_name: String },
     /// The JSON is a number but its value is out of the target field's numeric range.
-    ToBigInputNumber { field: String, value: String },
+    JsonNumberOutOfRange { field: String, value: String },
 }
 
 impl fmt::Display for FieldError {
@@ -95,9 +95,9 @@ impl fmt::Display for FieldError {
                 f,
                 "message type '{type_name}' has no known field named '{field}'"
             ),
-            FieldError::ToBigInputNumber { field, value } => write!(
+            FieldError::JsonNumberOutOfRange { field, value } => write!(
                 f,
-                "bad input for field '{field}', number '{value}' is out of range"
+                "bad input for field '{field}', JSON number '{value}' is out of range"
             ),
         }
     }
@@ -206,7 +206,7 @@ impl Field {
                     });
                 };
                 let Some(v) = n.as_i64().and_then(|v| i32::try_from(v).ok()) else {
-                    return Err(FieldError::ToBigInputNumber {
+                    return Err(FieldError::JsonNumberOutOfRange {
                         field: name,
                         value: n.to_string(),
                     });
