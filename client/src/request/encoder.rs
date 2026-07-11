@@ -21,11 +21,32 @@ use std::fmt::Formatter;
 
 use serde_json::Value;
 
+use crate::request::Request;
+use crate::request::body::RequestBody;
 use crate::schema::descriptor::{FieldDescriptorProto, FieldLabel, FieldType};
+use crate::wire::writer::Writer;
+
+impl Request<'_> {
+    pub fn encode(&self, writer: &mut Writer) {
+        self.body().encode(writer);
+    }
+}
+
+impl RequestBody {
+    pub fn encode(&self, writer: &mut Writer) {
+        // Sort fields with number before encoding so our fields are always encoded in the
+        // same order (based on the descriptor).
+        let mut fields: Vec<&Field> = self.fields().iter().collect();
+        fields.sort_by_key(|f| f.number);
+
+        for field in self.fields().iter() {
+            field.encode(writer);
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Field {
-    name: String,
     kind: FieldKind,
     number: u32,
 }
@@ -85,7 +106,7 @@ impl Field {
             FieldType::String => match value {
                 Value::String(value) => {
                     let kind = FieldKind::String(value);
-                    Ok(Field { name, kind, number })
+                    Ok(Field { kind, number })
                 }
                 actual => {
                     let expected = "string".to_string();
@@ -107,6 +128,17 @@ impl Field {
             FieldType::SFixed64 => todo!(),
             FieldType::SInt32 => todo!(),
             FieldType::SInt64 => todo!(),
+        }
+    }
+
+    pub fn encode(&self, writer: &mut Writer) {
+        match &self.kind {
+            FieldKind::String(value) => {
+                writer.write_string_field(self.number, &value);
+            }
+            FieldKind::Bool(_) => todo!(),
+            FieldKind::Array(_) => todo!(),
+            FieldKind::Message(_) => todo!(),
         }
     }
 }

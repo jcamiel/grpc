@@ -29,6 +29,7 @@ use crate::request::Request;
 use crate::request::body::RequestBodyError;
 use crate::schema::pool::DescriptorPool;
 use crate::schema::symbols::SymbolError;
+use crate::wire::writer::Writer;
 
 pub struct Client {}
 
@@ -119,8 +120,12 @@ impl Client {
         let request = Request::try_from(&descriptor_pool, &url, body)?;
 
         // Write the request body to file so we can inject it in Hurl
+        let mut writer = Writer::new();
+        request.body().encode(&mut writer);
+
         let body_path = Path::new("build/body.in");
-        fs::write(body_path, request.request_body()).unwrap();
+        let body = writer.bytes();
+        fs::write(body_path, body).unwrap();
 
         let content = format!(
             r#"#

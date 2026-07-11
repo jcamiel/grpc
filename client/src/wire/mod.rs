@@ -18,9 +18,9 @@
 
 //! Protobuf wire-format primitives, independent of any schema.
 
+use crate::wire::reader::ReaderError;
 use std::fmt;
 use std::fmt::Formatter;
-use crate::wire::reader::ReaderError;
 
 pub mod reader;
 pub mod writer;

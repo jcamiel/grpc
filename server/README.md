@@ -7,11 +7,11 @@ The server is intentionally minimal and **unary-only** — see [`../PLAN.md`](..
 
 ## Services exposed
 
-| Service              | Method     | Purpose                                                                                                                            |
-|----------------------|------------|------------------------------------------------------------------------------------------------------------------------------------|
-| `helloworld.Greeter`         | `SayHello` | Trivial baseline — `{name} → "Hello, {name}"`.                                                                                     |
-| `echo.Echo`                  | `Echo`     | Echoes back a "kitchen-sink" `Payload` that exercises every protobuf wire type, plus `received_at: Timestamp`.                     |
-| `status.Status`              | `Fail`     | Returns the `grpc-status` code requested in the body, with the supplied `grpc-message`. `code=0` returns `FailReply` successfully. |
+| Service                      | Method     | Purpose                                                                                                                                                                                          |
+|------------------------------|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `helloworld.Greeter`         | `SayHello` | Trivial baseline — `{name} → "Hello, {name}"`.                                                                                                                                                   |
+| `echo.Echo`                  | `Echo`     | Echoes back a "kitchen-sink" `Payload` that exercises every protobuf wire type, plus `received_at: Timestamp`.                                                                                   |
+| `status.Status`              | `Fail`     | Returns the `grpc-status` code requested in the body, with the supplied `grpc-message`. `code=0` returns `FailReply` successfully.                                                               |
 | `operation.OperationService` | `Compute`  | Tiny math service. `ADD` returns the sum of `operands`; `MULTIPLY` returns `UNIMPLEMENTED` with a `google.rpc.Status` + `ErrorInfo` in the `grpc-status-details-bin` trailer (rich error model). |
 
 [gRPC server reflection](https://github.com/grpc/grpc/blob/master/doc/server-reflection.md) is enabled, so clients that
@@ -137,4 +137,15 @@ After updating versions in `requirements.txt`:
 ```shell
 $ pip install --upgrade -r server/requirements.txt
 $ pip freeze --local > server/requirements-frozen.txt
+```
+
+## Capturing raw binary
+
+Using `tcpdump` and Wireshark:
+
+```shell
+$ sudo tcpdump -i lo0 -w /tmp/grpc.pcap -s0 tcp port 50051 &
+$ grpcurl -plaintext -d '{"name":"jc"}' localhost:50051 helloworld.Greeter/SayHello
+$ sudo kill %1
+$ wireshark /tmp/grpc.pcap
 ```

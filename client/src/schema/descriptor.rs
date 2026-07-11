@@ -19,8 +19,8 @@ use std::fmt;
 use std::fmt::Formatter;
 
 use super::resolve;
-use crate::wire::reader::{Reader, ReaderError};
 use crate::wire::WireType;
+use crate::wire::reader::{Reader, ReaderError};
 
 #[derive(Debug)]
 pub enum ParserError {

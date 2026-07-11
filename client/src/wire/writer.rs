@@ -17,25 +17,23 @@
  */
 use super::{BytePos, WireType};
 
-struct Writer {
+pub struct Writer {
     output: Vec<u8>,
     pos: BytePos,
 }
 
-
 impl Writer {
-
     pub fn new() -> Self {
         let output = Vec::new();
         let pos = BytePos(0);
-        Writer {output, pos}
+        Writer { output, pos }
     }
 
     fn pos(&self) -> BytePos {
         self.pos
     }
 
-    fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.output
     }
 
@@ -57,9 +55,7 @@ impl Writer {
         }
         self.write_byte(n as u8);
     }
-
 }
-
 
 impl Writer {
     pub fn write_string_field(&mut self, number: u32, value: &str) {
@@ -69,9 +65,6 @@ impl Writer {
         self.write_bytes(value.as_bytes());
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -89,6 +82,9 @@ mod tests {
     fn write_string() {
         let mut w = Writer::new();
         w.write_string_field(2, "testing");
-        assert_eq!(w.bytes(),[0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]);
+        assert_eq!(
+            w.bytes(),
+            [0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]
+        );
     }
 }

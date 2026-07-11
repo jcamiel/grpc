@@ -15,10 +15,10 @@
  * limitations under the License.
  *
  */
+use serde_json::{Map, Value};
 use std::fmt;
 use std::fmt::Formatter;
-
-use serde_json::{Map, Value};
+use std::slice::Iter;
 
 use super::encoder::Field;
 use crate::schema::descriptor::DescriptorProto;
@@ -63,13 +63,6 @@ impl fmt::Display for RequestBodyError {
 }
 
 impl RequestBody {
-    pub fn encode(&self) -> &[u8] {
-        for field in self.fields.iter() {
-            println!("{field:#?}");
-        }
-        &[]
-    }
-
     pub fn try_new(
         bytes: &[u8],
         input_message: &DescriptorProto,
@@ -112,5 +105,9 @@ impl RequestBody {
         }
 
         Ok(RequestBody { fields })
+    }
+
+    pub fn fields(&self) -> &[Field] {
+        &self.fields
     }
 }

@@ -21,6 +21,7 @@ use super::body::RequestBody;
 use crate::client::RunnerError;
 use crate::schema::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
 use crate::schema::pool::DescriptorPool;
+use crate::wire::writer::Writer;
 
 /// Represents a gRPC request.
 #[derive(Debug)]
@@ -44,8 +45,8 @@ impl<'fds> Request<'fds> {
         &self.method_name
     }
 
-    pub fn request_body(&self) -> &[u8] {
-        &self.request_body.encode()
+    pub fn body(&self) -> &RequestBody {
+        &self.request_body
     }
 
     /// Build a gRPC request given a set of descriptor, a URL and a body.
