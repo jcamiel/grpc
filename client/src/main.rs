@@ -42,6 +42,9 @@ struct Args {
     /// (output of `protoc --descriptor_set_out=...`, conventionally `.protoset`).
     #[arg(long, value_name = "PATH")]
     protoset: PathBuf,
+    /// Request body as a JSON string. If omitted, the body is read from standard input.
+    #[arg(short = 'd', long, value_name = "STRING")]
+    data: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -62,12 +65,18 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     };
 
-    // Read the request body as a UTF-8 string from standard input.
-    let mut body = String::new();
-    if let Err(e) = io::stdin().read_to_string(&mut body) {
-        eprintln!("error: could not read body from stdin: {e}");
-        return ExitCode::FAILURE;
-    }
+    // Request body: use `--data` if provided, otherwise read from standard input.
+    let body = match args.data {
+        Some(data) => data,
+        None => {
+            let mut buf = String::new();
+            if let Err(e) = io::stdin().read_to_string(&mut buf) {
+                eprintln!("error: could not read body from stdin: {e}");
+                return ExitCode::FAILURE;
+            }
+            buf
+        }
+    };
 
     let client = Client::new();
     let url = Url::parse(&url).unwrap();
