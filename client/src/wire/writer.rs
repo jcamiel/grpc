@@ -62,6 +62,19 @@ impl Writer {
         self.write_bytes(value.as_bytes());
     }
 
+    pub fn write_message_field(&mut self, number: u32, payload: &[u8]) {
+        let tag = (number << 3) | WireType::Len as u32;
+        self.write_varint(tag as u64);
+        self.write_varint(payload.len() as u64);
+        self.write_bytes(payload);
+    }
+
+    pub fn write_sfixed32_field(&mut self, number: u32, value: i32) {
+        let tag = (number << 3) | WireType::I32 as u32;
+        self.write_varint(tag as u64);
+        self.write_bytes(&value.to_le_bytes());
+    }
+
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
         // The length will be patched by [`Self::end_grpc_frame`].
@@ -107,5 +120,12 @@ mod tests {
             w.bytes(),
             [0x00, 0x00, 0x00, 0x00, 0x05, 0x0a, 0x03, 0x62, 0x6f, 0x62]
         );
+    }
+
+    #[test]
+    fn write_sfixed32() {
+        let mut w = Writer::new();
+        w.write_sfixed32_field(1, -1);
+        assert_eq!(w.bytes(), [0x0d, 0xff, 0xff, 0xff, 0xff]);
     }
 }

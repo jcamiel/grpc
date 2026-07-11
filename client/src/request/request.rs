@@ -21,7 +21,6 @@ use super::body::RequestBody;
 use crate::client::RunnerError;
 use crate::schema::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
 use crate::schema::pool::DescriptorPool;
-use crate::wire::writer::Writer;
 
 /// Represents a gRPC request.
 #[derive(Debug)]
@@ -98,13 +97,14 @@ impl<'fds> Request<'fds> {
                 })?;
 
         // Parse the body
-        let request_body = RequestBody::try_new(body, input_message).map_err(|error| {
-            RunnerError::InvalidRequestBody {
-                service: svc_fqn.clone(),
-                method: method_name.clone(),
-                error,
-            }
-        })?;
+        let request_body =
+            RequestBody::try_new(body, input_message, &symbols).map_err(|error| {
+                RunnerError::InvalidRequestBody {
+                    service: svc_fqn.clone(),
+                    method: method_name.clone(),
+                    error,
+                }
+            })?;
 
         let request = Request {
             service_name: svc_fqn,

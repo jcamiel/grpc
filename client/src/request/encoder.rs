@@ -22,8 +22,9 @@ use std::fmt::Formatter;
 use serde_json::Value;
 
 use super::Request;
-use super::body::RequestBody;
+use super::body::{RequestBody, RequestBodyError};
 use crate::schema::descriptor::{FieldDescriptorProto, FieldLabel, FieldType};
+use crate::schema::symbols::SymbolTable;
 use crate::wire::writer::Writer;
 
 impl Request<'_> {
@@ -39,7 +40,7 @@ impl RequestBody {
         let mut fields: Vec<&Field> = self.fields().iter().collect();
         fields.sort_by_key(|f| f.number);
 
-        for field in self.fields().iter() {
+        for field in fields.iter() {
             field.encode(writer);
         }
     }
@@ -57,26 +58,46 @@ pub enum FieldKind {
     Bool(bool),
     Array(Vec<Field>),
     Message(HashMap<String, Field>),
+    SFixed32(i32),
 }
 
 pub enum FieldError {
-    InvalidInputType {
-        name: String,
+    /// The JSON input type doesn't match the expected type given the actual descripor
+    InvalidJsonInputType {
+        field: String,
         expected: String,
         actual: String,
     },
+    /// The symbol table (or the descriptor) doesn't know the type `type_name` of a field named `field`.
+    UnresolvedType { field: String, type_name: String },
+    /// The input JSON has a `field` which is not present in the type name `type_name`.
+    UnknownJsonField { field: String, type_name: String },
+    /// The JSON is a number but its value is out of the target field's numeric range.
+    ToBigInputNumber { field: String, value: String },
 }
 
 impl fmt::Display for FieldError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            FieldError::InvalidInputType {
-                name,
+            FieldError::InvalidJsonInputType {
+                field,
                 expected,
                 actual,
             } => write!(
                 f,
-                "bad input for field '{name}' expecting JSON {expected} actual {actual}"
+                "bad input for field '{field}' expecting JSON {expected} actual {actual}"
+            ),
+            FieldError::UnresolvedType { field, type_name } => write!(
+                f,
+                "bad input for field '{field}' type '{type_name}' is unknown"
+            ),
+            FieldError::UnknownJsonField { field, type_name } => write!(
+                f,
+                "message type '{type_name}' has no known field named '{field}'"
+            ),
+            FieldError::ToBigInputNumber { field, value } => write!(
+                f,
+                "bad input for field '{field}', number '{value}' is out of range"
             ),
         }
     }
@@ -85,6 +106,7 @@ impl fmt::Display for FieldError {
 impl Field {
     pub fn try_new(
         descriptor: &FieldDescriptorProto,
+        symbols: &SymbolTable,
         value: Value,
     ) -> Result<Option<Self>, FieldError> {
         // TODO: check validity of descripto.label
@@ -116,39 +138,84 @@ impl Field {
                     let kind = FieldKind::String(value);
                     Ok(Some(Field { kind, number }))
                 }
-                Value::Null => Ok(None),
                 actual => {
                     let expected = "string".to_string();
                     let actual = type_of_value(&actual).to_string();
-                    let err = FieldError::InvalidInputType {
+                    let err = FieldError::InvalidJsonInputType {
+                        field: name,
                         expected,
                         actual,
-                        name,
                     };
                     Err(err)
                 }
             },
             FieldType::Group => todo!(),
-            FieldType::Message => match value {
-                Value::Object(value) => {
-                    todo!()
+            FieldType::Message => {
+                assert!(descriptor.type_name.is_some());
+                match value {
+                    // Do we need to distinguish between message and map ?
+                    Value::Object(value) => {
+                        let type_name = descriptor.type_name.as_deref().unwrap();
+                        let msg_descriptor =
+                            symbols
+                                .find_message(type_name)
+                                .ok_or(FieldError::UnresolvedType {
+                                    field: name,
+                                    type_name: type_name.to_string(),
+                                })?;
+                        let mut map = HashMap::new();
+                        for (field_name, field_value) in value.into_iter() {
+                            let field_desc = msg_descriptor
+                                .fields
+                                .iter()
+                                .find(|f| f.name.as_deref() == Some(&field_name))
+                                .ok_or(FieldError::UnknownJsonField {
+                                    field: field_name.clone(),
+                                    type_name: msg_descriptor.fqn.to_string(),
+                                })?;
+                            let field = Field::try_new(field_desc, symbols, field_value)?;
+                            if let Some(field) = field {
+                                map.insert(field_name, field);
+                            }
+                        }
+                        let kind = FieldKind::Message(map);
+                        let field = Field { kind, number };
+                        Ok(Some(field))
+                    }
+                    actual => {
+                        let expected = "object".to_string();
+                        let actual = type_of_value(&actual).to_string();
+                        let err = FieldError::InvalidJsonInputType {
+                            field: name,
+                            expected,
+                            actual,
+                        };
+                        Err(err)
+                    }
                 }
-                Value::Null => Ok(None),
-                actual => {
-                    let expected = "object".to_string();
-                    let actual = type_of_value(&actual).to_string();
-                    let err = FieldError::InvalidInputType {
-                        expected,
-                        actual,
-                        name,
-                    };
-                    Err(err)
-                }
-            },
+            }
             FieldType::Bytes => todo!(),
             FieldType::UInt32 => todo!(),
             FieldType::Enum => todo!(),
-            FieldType::SFixed32 => todo!(),
+            FieldType::SFixed32 => {
+                let Value::Number(n) = value else {
+                    return Err(FieldError::InvalidJsonInputType {
+                        field: name,
+                        expected: "integer".to_string(),
+                        actual: type_of_value(&value).to_string(),
+                    });
+                };
+                let Some(v) = n.as_i64().and_then(|v| i32::try_from(v).ok()) else {
+                    return Err(FieldError::ToBigInputNumber {
+                        field: name,
+                        value: n.to_string(),
+                    });
+                };
+                Ok(Some(Field {
+                    kind: FieldKind::SFixed32(v),
+                    number,
+                }))
+            }
             FieldType::SFixed64 => todo!(),
             FieldType::SInt32 => todo!(),
             FieldType::SInt64 => todo!(),
@@ -162,7 +229,22 @@ impl Field {
             }
             FieldKind::Bool(_) => todo!(),
             FieldKind::Array(_) => todo!(),
-            FieldKind::Message(_) => todo!(),
+            FieldKind::Message(map) => {
+                // Sort sub-fields by their number so encoding is deterministic.
+                let mut fields: Vec<&Field> = map.values().collect();
+                fields.sort_by_key(|f| f.number);
+
+                // Encode the sub-message into a scratch writer, then write it as a length-delimited
+                // sub-message on the outer writer.
+                let mut inner = Writer::new();
+                for field in fields {
+                    field.encode(&mut inner);
+                }
+                writer.write_message_field(self.number, inner.bytes());
+            }
+            FieldKind::SFixed32(v) => {
+                writer.write_sfixed32_field(self.number, *v);
+            }
         }
     }
 }

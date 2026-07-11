@@ -18,10 +18,10 @@
 use serde_json::{Map, Value};
 use std::fmt;
 use std::fmt::Formatter;
-use std::slice::Iter;
 
 use super::encoder::Field;
 use crate::schema::descriptor::DescriptorProto;
+use crate::schema::symbols::SymbolTable;
 
 #[derive(Debug)]
 pub struct RequestBody {
@@ -34,9 +34,11 @@ pub enum RequestBodyError {
         error: String,
     },
     NotJsonObject,
-    UnknownField {
-        input_message: String,
+    /// The input JSON request body has a `field` which is not present in the input message with
+    /// type `input_message`.
+    UnknownJsonField {
         field: String,
+        input_message: String,
     },
     InvalidField {
         error: String,
@@ -50,12 +52,12 @@ impl fmt::Display for RequestBodyError {
                 write!(f, "invalid request body, {error}")
             }
             RequestBodyError::NotJsonObject => write!(f, "expecting JSON Object"),
-            RequestBodyError::UnknownField {
+            RequestBodyError::UnknownJsonField {
                 input_message,
                 field,
             } => write!(
                 f,
-                "invalid request body, message type '{input_message}' has no known field named '{field}'"
+                "invalid request body, input message type '{input_message}' has no known field named '{field}'"
             ),
             RequestBodyError::InvalidField { error } => write!(f, "invalid request body, {error}"),
         }
@@ -66,6 +68,7 @@ impl RequestBody {
     pub fn try_new(
         bytes: &[u8],
         input_message: &DescriptorProto,
+        symbols: &SymbolTable,
     ) -> Result<RequestBody, RequestBodyError> {
         let bytes = bytes.trim_ascii();
         let mut fields = Vec::new();
@@ -92,15 +95,16 @@ impl RequestBody {
                 .fields
                 .iter()
                 .find(|f| f.name.as_deref() == Some(&name))
-                .ok_or_else(|| RequestBodyError::UnknownField {
-                    input_message: input_message.fqn.clone(),
+                .ok_or(RequestBodyError::UnknownJsonField {
                     field: name.clone(),
+                    input_message: input_message.fqn.clone(),
                 })?;
 
-            let field =
-                Field::try_new(field_desc, value).map_err(|e| RequestBodyError::InvalidField {
+            let field = Field::try_new(field_desc, symbols, value).map_err(|e| {
+                RequestBodyError::InvalidField {
                     error: e.to_string(),
-                })?;
+                }
+            })?;
             if let Some(field) = field {
                 fields.push(field);
             }
