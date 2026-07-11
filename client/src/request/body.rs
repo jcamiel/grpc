@@ -20,11 +20,12 @@ use std::fmt::Formatter;
 
 use serde_json::{Map, Value};
 
-use super::descriptor::DescriptorProto;
+use super::encoder::Field;
+use crate::schema::descriptor::DescriptorProto;
 
 #[derive(Debug)]
 pub struct RequestBody {
-    bytes: Vec<u8>,
+    fields: Vec<Field>,
 }
 
 #[derive(Debug)]
@@ -36,6 +37,9 @@ pub enum RequestBodyError {
     UnknownField {
         input_message: String,
         field: String,
+    },
+    InvalidField {
+        error: String,
     },
 }
 
@@ -53,20 +57,25 @@ impl fmt::Display for RequestBodyError {
                 f,
                 "invalid request body, message type '{input_message}' has no known field named '{field}'"
             ),
+            RequestBodyError::InvalidField { error } => write!(f, "invalid request body, {error}"),
         }
     }
 }
 
 impl RequestBody {
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
+    pub fn encode(&self) -> &[u8] {
+        for field in self.fields.iter() {
+            println!("{field:#?}");
+        }
+        &[]
     }
 
-    pub fn from_bytes(
+    pub fn try_new(
         bytes: &[u8],
         input_message: &DescriptorProto,
-    ) -> Result<Self, RequestBodyError> {
+    ) -> Result<RequestBody, RequestBodyError> {
         let bytes = bytes.trim_ascii();
+        let mut fields = Vec::new();
         let json_body = if !bytes.is_empty() {
             let v: Value =
                 serde_json::from_slice(bytes).map_err(|e| RequestBodyError::InvalidJson {
@@ -85,19 +94,23 @@ impl RequestBody {
         };
 
         // Iterate on each field
-        for (name, _value) in json_body.iter() {
-            let field = input_message
+        for (name, value) in json_body.into_iter() {
+            let field_desc = input_message
                 .fields
                 .iter()
-                .find(|f| f.name.as_deref() == Some(name))
+                .find(|f| f.name.as_deref() == Some(&name))
                 .ok_or_else(|| RequestBodyError::UnknownField {
                     input_message: input_message.fqn.clone(),
                     field: name.clone(),
                 })?;
-            println!("field {}: {:#?}", name, field);
+
+            let field =
+                Field::try_new(field_desc, value).map_err(|e| RequestBodyError::InvalidField {
+                    error: e.to_string(),
+                })?;
+            fields.push(field);
         }
 
-        let request_body = RequestBody { bytes: vec![] };
-        Ok(request_body)
+        Ok(RequestBody { fields })
     }
 }

@@ -18,10 +18,42 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-use super::parser;
-use super::parser::ParserError;
-use super::reader::Reader;
 use super::resolve;
+use crate::wire::reader::{Reader, ReaderError, WireType};
+
+#[derive(Debug)]
+pub enum ParserError {
+    Reader(ReaderError),
+    WireTypeMismatch {
+        expected: WireType,
+        actual: WireType,
+        field: &'static str,
+        entity: &'static str,
+    },
+    UnsupportedSyntax {
+        syntax: String,
+    },
+    Schema {
+        cause: String,
+    },
+}
+
+impl From<ReaderError> for ParserError {
+    fn from(value: ReaderError) -> Self {
+        ParserError::Reader(value)
+    }
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ParserError::Reader(..) => write!(f, "ParserError::Reader"),
+            ParserError::WireTypeMismatch { .. } => write!(f, "ParserError::WireTypeMismatch"),
+            ParserError::UnsupportedSyntax { .. } => write!(f, "ParserError::UnsupportedSyntax"),
+            ParserError::Schema { .. } => write!(f, "ParserError::Schema"),
+        }
+    }
+}
 
 /// A decoded `google.protobuf.FileDescriptorSet`.
 ///
@@ -57,7 +89,7 @@ impl FileDescriptorSet {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let bytes = parser::message("file", entity, &mut reader, wire_type)?;
+                    let bytes = message("file", entity, &mut reader, wire_type)?;
                     let file = FileDescriptorProto::parse(bytes)?;
                     files.push(file);
                 }
@@ -96,30 +128,30 @@ impl FileDescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    let str = string("name", entity, &mut reader, wire_type)?;
                     name = Some(str);
                 }
                 2 => {
-                    let str = parser::string("package", entity, &mut reader, wire_type)?;
+                    let str = string("package", entity, &mut reader, wire_type)?;
                     package = Some(str);
                 }
                 4 => {
-                    let bytes = parser::message("message_type", entity, &mut reader, wire_type)?;
+                    let bytes = message("message_type", entity, &mut reader, wire_type)?;
                     let message_type = DescriptorProto::parse(bytes)?;
                     message_types.push(message_type);
                 }
                 5 => {
-                    let bytes = parser::message("enum_type", entity, &mut reader, wire_type)?;
+                    let bytes = message("enum_type", entity, &mut reader, wire_type)?;
                     let enum_type = EnumDescriptorProto::parse(bytes)?;
                     enum_types.push(enum_type);
                 }
                 6 => {
-                    let bytes = parser::message("service", entity, &mut reader, wire_type)?;
+                    let bytes = message("service", entity, &mut reader, wire_type)?;
                     let service = ServiceDescriptorProto::parse(bytes)?;
                     services.push(service);
                 }
                 12 => {
-                    let syntax = parser::string("syntax", entity, &mut reader, wire_type)?;
+                    let syntax = string("syntax", entity, &mut reader, wire_type)?;
                     if syntax != "proto3" {
                         return Err(ParserError::UnsupportedSyntax { syntax });
                     }
@@ -171,31 +203,31 @@ impl DescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    let str = string("name", entity, &mut reader, wire_type)?;
                     name = Some(str);
                 }
                 2 => {
-                    let bytes = parser::message("field", entity, &mut reader, wire_type)?;
+                    let bytes = message("field", entity, &mut reader, wire_type)?;
                     let field = FieldDescriptorProto::parse(bytes)?;
                     fields.push(field);
                 }
                 3 => {
-                    let bytes = parser::message("nested_type", entity, &mut reader, wire_type)?;
+                    let bytes = message("nested_type", entity, &mut reader, wire_type)?;
                     let message_type = DescriptorProto::parse(bytes)?;
                     nested_types.push(message_type);
                 }
                 4 => {
-                    let bytes = parser::message("enum_type", entity, &mut reader, wire_type)?;
+                    let bytes = message("enum_type", entity, &mut reader, wire_type)?;
                     let enum_type = EnumDescriptorProto::parse(bytes)?;
                     enum_types.push(enum_type);
                 }
                 7 => {
-                    let bytes = parser::message("options", entity, &mut reader, wire_type)?;
+                    let bytes = message("options", entity, &mut reader, wire_type)?;
                     let value = MessageOptions::parse(bytes)?;
                     options = Some(value);
                 }
                 8 => {
-                    let bytes = parser::message("oneof_decl", entity, &mut reader, wire_type)?;
+                    let bytes = message("oneof_decl", entity, &mut reader, wire_type)?;
                     let oneof_decl = OneOfDescriptorProto::parse(bytes)?;
                     oneof_decls.push(oneof_decl);
                 }
@@ -365,29 +397,29 @@ impl FieldDescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let value = parser::string("name", entity, &mut reader, wire_type)?;
+                    let value = string("name", entity, &mut reader, wire_type)?;
                     name = Some(value);
                 }
                 3 => {
-                    let value = parser::uint32("number", entity, &mut reader, wire_type)?;
+                    let value = uint32("number", entity, &mut reader, wire_type)?;
                     number = Some(value);
                 }
                 4 => {
-                    let value = parser::r#enum("label", entity, &mut reader, wire_type)?;
+                    let value = r#enum("label", entity, &mut reader, wire_type)?;
                     let value = FieldLabel::try_from(value, "label", entity)?;
                     label = Some(value);
                 }
                 5 => {
-                    let value = parser::r#enum("type", entity, &mut reader, wire_type)?;
+                    let value = r#enum("type", entity, &mut reader, wire_type)?;
                     let value = FieldType::try_from(value, "type", entity)?;
                     field_type = Some(value);
                 }
                 6 => {
-                    let str = parser::string("type_name", entity, &mut reader, wire_type)?;
+                    let str = string("type_name", entity, &mut reader, wire_type)?;
                     type_name = Some(str);
                 }
                 9 => {
-                    let value = parser::uint32("oneof_index", entity, &mut reader, wire_type)?;
+                    let value = uint32("oneof_index", entity, &mut reader, wire_type)?;
                     oneof_index = Some(value)
                 }
                 17 => {
@@ -395,7 +427,7 @@ impl FieldDescriptorProto {
                     // When proto3_optional is true, this field must belong to a oneof to signal
                     // to old proto3 clients that presence is tracked for this field. This oneof
                     // is known as a "synthetic" oneof, and this field must be its sole member
-                    let value = parser::bool("proto3_optional", entity, &mut reader, wire_type)?;
+                    let value = bool("proto3_optional", entity, &mut reader, wire_type)?;
                     proto3_optional = Some(value)
                 }
                 _ => reader.skip(wire_type)?,
@@ -455,11 +487,11 @@ impl EnumDescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    let str = string("name", entity, &mut reader, wire_type)?;
                     name = Some(str);
                 }
                 2 => {
-                    let bytes = parser::message("value", entity, &mut reader, wire_type)?;
+                    let bytes = message("value", entity, &mut reader, wire_type)?;
                     let value = EnumValueDescriptorProto::parse(bytes)?;
                     values.push(value);
                 }
@@ -492,7 +524,7 @@ impl OneOfDescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    let str = string("name", entity, &mut reader, wire_type)?;
                     name = Some(str);
                 }
                 _ => reader.skip(wire_type)?,
@@ -522,11 +554,11 @@ impl EnumValueDescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    let str = string("name", entity, &mut reader, wire_type)?;
                     name = Some(str);
                 }
                 2 => {
-                    let value = parser::uint32("number", entity, &mut reader, wire_type)?;
+                    let value = uint32("number", entity, &mut reader, wire_type)?;
                     number = Some(value);
                 }
                 _ => reader.skip(wire_type)?,
@@ -558,11 +590,11 @@ impl ServiceDescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    let str = string("name", entity, &mut reader, wire_type)?;
                     name = Some(str);
                 }
                 2 => {
-                    let bytes = parser::message("method", entity, &mut reader, wire_type)?;
+                    let bytes = message("method", entity, &mut reader, wire_type)?;
                     methods.push(MethodDescriptorProto::parse(bytes)?);
                 }
                 _ => reader.skip(wire_type)?,
@@ -608,23 +640,23 @@ impl MethodDescriptorProto {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 1 => {
-                    let str = parser::string("name", entity, &mut reader, wire_type)?;
+                    let str = string("name", entity, &mut reader, wire_type)?;
                     name = Some(str);
                 }
                 2 => {
-                    let str = parser::string("input_type", entity, &mut reader, wire_type)?;
+                    let str = string("input_type", entity, &mut reader, wire_type)?;
                     input_type = Some(str);
                 }
                 3 => {
-                    let str = parser::string("output_type", entity, &mut reader, wire_type)?;
+                    let str = string("output_type", entity, &mut reader, wire_type)?;
                     output_type = Some(str);
                 }
                 5 => {
-                    let value = parser::bool("client_streaming", entity, &mut reader, wire_type)?;
+                    let value = bool("client_streaming", entity, &mut reader, wire_type)?;
                     client_streaming = Some(value);
                 }
                 6 => {
-                    let value = parser::bool("server_streaming", entity, &mut reader, wire_type)?;
+                    let value = bool("server_streaming", entity, &mut reader, wire_type)?;
                     server_streaming = Some(value);
                 }
                 _ => reader.skip(wire_type)?,
@@ -660,7 +692,7 @@ impl MessageOptions {
             let (field_number, wire_type) = reader.read_tag()?;
             match field_number {
                 7 => {
-                    let value = parser::bool("map_entry", entity, &mut reader, wire_type)?;
+                    let value = bool("map_entry", entity, &mut reader, wire_type)?;
                     map_entry = Some(value);
                 }
                 _ => reader.skip(wire_type)?,
@@ -668,4 +700,96 @@ impl MessageOptions {
         }
         Ok(MessageOptions { map_entry })
     }
+}
+
+// Helpers methods
+
+fn string(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<String, ParserError> {
+    if wt != WireType::Len {
+        return Err(ParserError::WireTypeMismatch {
+            expected: WireType::Len,
+            actual: wt,
+            field,
+            entity,
+        });
+    }
+    let value = reader.read_string()?;
+    Ok(value)
+}
+
+fn bool(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<bool, ParserError> {
+    if wt != WireType::VarInt {
+        return Err(ParserError::WireTypeMismatch {
+            expected: WireType::VarInt,
+            actual: wt,
+            field,
+            entity,
+        });
+    }
+    let value = reader.read_bool()?;
+    Ok(value)
+}
+
+fn uint32(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<u32, ParserError> {
+    if wt != WireType::VarInt {
+        return Err(ParserError::WireTypeMismatch {
+            expected: WireType::VarInt,
+            actual: wt,
+            field,
+            entity,
+        });
+    }
+    let value = reader.read_uint32()?;
+    Ok(value)
+}
+
+fn message<'input>(
+    field: &'static str,
+    entity: &'static str,
+    reader: &'input mut Reader,
+    wt: WireType,
+) -> Result<&'input [u8], ParserError> {
+    if wt != WireType::Len {
+        return Err(ParserError::WireTypeMismatch {
+            expected: WireType::Len,
+            actual: wt,
+            field,
+            entity,
+        });
+    }
+    let value = reader.read_len_delimited()?;
+    Ok(value)
+}
+
+fn r#enum(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<u64, ParserError> {
+    if wt != WireType::VarInt {
+        return Err(ParserError::WireTypeMismatch {
+            expected: WireType::VarInt,
+            actual: wt,
+            field,
+            entity,
+        });
+    }
+    let value = reader.read_varint()?;
+    Ok(value)
 }

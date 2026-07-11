@@ -25,10 +25,10 @@ use hurl::runner::{Input, RunnerOptionsBuilder, VariableSet};
 use hurl::util::logger::{LoggerOptionsBuilder, Verbosity};
 use url::Url;
 
-use super::pool::DescriptorPool;
-use super::request::Request;
-use super::request_body::RequestBodyError;
-use super::symbols::SymbolError;
+use crate::request::Request;
+use crate::request::body::RequestBodyError;
+use crate::schema::pool::DescriptorPool;
+use crate::schema::symbols::SymbolError;
 
 pub struct Client {}
 
@@ -179,11 +179,11 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::descriptor::{
+    use crate::schema::descriptor::{
         DescriptorProto, FileDescriptorProto, FileDescriptorSet, MethodDescriptorProto,
         ServiceDescriptorProto,
     };
-    use crate::resolve::resolve_fqns;
+    use crate::schema::resolve::resolve_fqns;
 
     // Builders to construct a `FileDescriptorSet` by hand for tests.
     fn message(name: &str) -> DescriptorProto {

@@ -20,8 +20,7 @@ use std::io;
 use std::path::Path;
 use std::{fmt, fs};
 
-use super::descriptor::FileDescriptorSet;
-use super::parser::ParserError;
+use super::descriptor::{FileDescriptorSet, ParserError};
 use super::symbols::{SymbolError, SymbolTable};
 
 /// A loaded `.protoset` file. Owns the parsed descriptor set; the symbol table is computed on

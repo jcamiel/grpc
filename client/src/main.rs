@@ -16,15 +16,9 @@
  *
  */
 mod client;
-mod descriptor;
-mod encoder;
-mod parser;
-mod pool;
-mod reader;
 mod request;
-mod request_body;
-mod resolve;
-mod symbols;
+mod schema;
+mod wire;
 
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -34,7 +28,7 @@ use clap::Parser;
 use url::Url;
 
 use client::Client;
-use pool::DescriptorPool;
+use schema::pool::DescriptorPool;
 
 /// Rust prototype of the gRPC code paths Hurl will eventually grow.
 ///

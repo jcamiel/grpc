@@ -17,10 +17,10 @@
  */
 use url::Url;
 
-use super::client::RunnerError;
-use super::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
-use super::pool::DescriptorPool;
-use super::request_body::RequestBody;
+use super::body::RequestBody;
+use crate::client::RunnerError;
+use crate::schema::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
+use crate::schema::pool::DescriptorPool;
 
 /// Represents a gRPC request.
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl<'fds> Request<'fds> {
     }
 
     pub fn request_body(&self) -> &[u8] {
-        &self.request_body.bytes()
+        &self.request_body.encode()
     }
 
     /// Build a gRPC request given a set of descriptor, a URL and a body.
@@ -56,9 +56,6 @@ impl<'fds> Request<'fds> {
     ) -> Result<Self, RunnerError> {
         // Parse the URL into (service FQN, method name).
         let (svc_fqn, method_name) = parse_grpc_path(url)?;
-
-        // Get the descriptor set.
-        let fds = descriptor_pool.descriptor_set();
 
         // Get the symbols table.
         let symbols = descriptor_pool
@@ -100,7 +97,7 @@ impl<'fds> Request<'fds> {
                 })?;
 
         // Parse the body
-        let request_body = RequestBody::from_bytes(body, input_message).map_err(|error| {
+        let request_body = RequestBody::try_new(body, input_message).map_err(|error| {
             RunnerError::InvalidRequestBody {
                 service: svc_fqn.clone(),
                 method: method_name.clone(),
