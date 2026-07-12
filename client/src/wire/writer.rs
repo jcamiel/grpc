@@ -75,6 +75,16 @@ impl Writer {
         self.write_bytes(&value.to_le_bytes());
     }
 
+    pub fn write_int32_field(&mut self, number: u32, value: i32) {
+        let tag = (number << 3) | WireType::VarInt as u32;
+        self.write_varint(tag as u64);
+        // Sign-extend i32 → i64, then reinterpret as u64. Negative values
+        // therefore encode as a 10-byte varint (full two's-complement u64),
+        // matching the protobuf spec for `int32`. For `sint32` semantics
+        // (zigzag) use a distinct helper.
+        self.write_varint(value as i64 as u64);
+    }
+
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
         // The length will be patched by [`Self::end_grpc_frame`].
@@ -127,5 +137,24 @@ mod tests {
         let mut w = Writer::new();
         w.write_sfixed32_field(1, -1);
         assert_eq!(w.bytes(), [0x0d, 0xff, 0xff, 0xff, 0xff]);
+    }
+
+    #[test]
+    fn write_int32_positive() {
+        let mut w = Writer::new();
+        w.write_int32_field(1, 150);
+        assert_eq!(w.bytes(), [0x08, 0x96, 0x01]);
+    }
+
+    #[test]
+    fn write_int32_negative_is_ten_bytes() {
+        let mut w = Writer::new();
+        w.write_int32_field(1, -1);
+        assert_eq!(
+            w.bytes(),
+            [
+                0x08, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01
+            ]
+        );
     }
 }

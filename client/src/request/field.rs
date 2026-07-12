@@ -43,6 +43,7 @@ pub enum FieldKind {
     Array(Vec<Field>),
     Message(Vec<Field>),
     SFixed32(i32),
+    Int32(i32),
 }
 
 /// Match every key of `json` against `message`'s field descriptors and recurse.
@@ -137,91 +138,87 @@ impl Field {
             FieldType::Float => todo!(),
             FieldType::Int64 => todo!(),
             FieldType::UInt64 => todo!(),
-            FieldType::Int32 => todo!(),
+            FieldType::Int32 => try_new_int32(&value, &name, number),
             FieldType::Fixed64 => todo!(),
             FieldType::Fixed32 => todo!(),
             FieldType::Bool => todo!(),
-            FieldType::String => Self::try_new_string(value, &name, number),
+            FieldType::String => try_new_string(value, &name, number),
             FieldType::Group => todo!(),
-            FieldType::Message => Self::try_new_message(descriptor, symbols, value, &name, number),
+            FieldType::Message => try_new_message(descriptor, symbols, value, &name, number),
             FieldType::Bytes => todo!(),
             FieldType::UInt32 => todo!(),
             FieldType::Enum => todo!(),
-            FieldType::SFixed32 => Self::try_new_sfixed32(&value, name, number),
+            FieldType::SFixed32 => try_new_sfixed32(&value, &name, number),
             FieldType::SFixed64 => todo!(),
             FieldType::SInt32 => todo!(),
             FieldType::SInt64 => todo!(),
         }?;
         Ok(Some(field))
     }
+}
 
-    fn try_new_sfixed32(value: &Value, name: String, number: u32) -> Result<Field, FieldError> {
-        let Value::Number(n) = value else {
-            return Err(FieldError::InvalidJsonInputType {
-                field: name,
-                expected: "integer".to_string(),
-                actual: type_of_value(&value).to_string(),
-            });
-        };
-        let Some(v) = n.as_i64().and_then(|v| i32::try_from(v).ok()) else {
-            return Err(FieldError::JsonNumberOutOfRange {
-                field: name,
-                value: n.to_string(),
-            });
-        };
-        Ok(Field {
-            kind: FieldKind::SFixed32(v),
-            number,
-        })
-    }
+fn try_new_sfixed32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_i32(value, name)?;
+    Ok(Field {
+        kind: FieldKind::SFixed32(v),
+        number,
+    })
+}
 
-    fn try_new_message(
-        descriptor: &FieldDescriptorProto,
-        symbols: &SymbolTable,
-        value: Value,
-        name: &str,
-        number: u32,
-    ) -> Result<Field, FieldError> {
-        assert!(descriptor.type_name.is_some());
-        // Do we need to distinguish between message and map ?
-        let Value::Object(obj) = value else {
-            return Err(FieldError::InvalidJsonInputType {
+fn try_new_int32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_i32(value, name)?;
+    Ok(Field {
+        kind: FieldKind::Int32(v),
+        number,
+    })
+}
+
+fn try_new_message(
+    descriptor: &FieldDescriptorProto,
+    symbols: &SymbolTable,
+    value: Value,
+    name: &str,
+    number: u32,
+) -> Result<Field, FieldError> {
+    assert!(descriptor.type_name.is_some());
+    // Do we need to distinguish between message and map ?
+    let Value::Object(obj) = value else {
+        return Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "object".to_string(),
+            actual: type_of_value(&value).to_string(),
+        });
+    };
+    let type_name = descriptor.type_name.as_deref().unwrap();
+    let msg_descriptor =
+        symbols
+            .find_message(type_name)
+            .ok_or_else(|| FieldError::UnresolvedType {
                 field: name.to_string(),
-                expected: "object".to_string(),
-                actual: type_of_value(&value).to_string(),
-            });
-        };
-        let type_name = descriptor.type_name.as_deref().unwrap();
-        let msg_descriptor =
-            symbols
-                .find_message(type_name)
-                .ok_or_else(|| FieldError::UnresolvedType {
-                    field: name.to_string(),
-                    type_name: type_name.to_string(),
-                })?;
-        let fields = parse_fields(msg_descriptor, symbols, obj)?;
-        Ok(Field {
-            kind: FieldKind::Message(fields),
-            number,
-        })
-    }
+                type_name: type_name.to_string(),
+            })?;
+    let fields = parse_fields(msg_descriptor, symbols, obj)?;
+    Ok(Field {
+        kind: FieldKind::Message(fields),
+        number,
+    })
+}
 
-    fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldError> {
-        match value {
-            Value::String(value) => {
-                let kind = FieldKind::String(value);
-                Ok(Field { kind, number })
-            }
-            actual => {
-                let expected = "string".to_string();
-                let actual = type_of_value(&actual).to_string();
-                let err = FieldError::InvalidJsonInputType {
-                    field: name.to_string(),
-                    expected,
-                    actual,
-                };
-                Err(err)
-            }
+fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    match value {
+        Value::String(value) => {
+            let kind = FieldKind::String(value);
+            Ok(Field { kind, number })
+        }
+        actual => {
+            let expected = "string".to_string();
+            let actual = type_of_value(&actual).to_string();
+            let err = FieldError::InvalidJsonInputType {
+                field: name.to_string(),
+                expected,
+                actual,
+            };
+            Err(err)
         }
     }
 }
@@ -250,8 +247,28 @@ impl Field {
             FieldKind::SFixed32(v) => {
                 writer.write_sfixed32_field(self.number, *v);
             }
+            FieldKind::Int32(v) => {
+                writer.write_int32_field(self.number, *v);
+            }
         }
     }
+}
+
+/// Extract an `i32` from a JSON [`Value`].
+fn parse_i32(value: &Value, name: &str) -> Result<i32, FieldError> {
+    let Value::Number(n) = value else {
+        return Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "integer".to_string(),
+            actual: type_of_value(value).to_string(),
+        });
+    };
+    n.as_i64()
+        .and_then(|v| i32::try_from(v).ok())
+        .ok_or_else(|| FieldError::JsonNumberOutOfRange {
+            field: name.to_string(),
+            value: n.to_string(),
+        })
 }
 
 fn type_of_value(value: &Value) -> &'static str {
