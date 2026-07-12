@@ -15,9 +15,8 @@
  * limitations under the License.
  *
  */
+use std::fmt;
 use std::fmt::Formatter;
-use std::path::Path;
-use std::{fmt, fs};
 
 use base64::prelude::*;
 

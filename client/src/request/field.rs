@@ -44,6 +44,7 @@ pub enum FieldKind {
     Message(Vec<Field>),
     SFixed32(i32),
     Int32(i32),
+    SInt32(i32),
 }
 
 /// Match every key of `json` against `message`'s field descriptors and recurse.
@@ -150,7 +151,7 @@ impl Field {
             FieldType::Enum => todo!(),
             FieldType::SFixed32 => try_new_sfixed32(&value, &name, number),
             FieldType::SFixed64 => todo!(),
-            FieldType::SInt32 => todo!(),
+            FieldType::SInt32 => try_new_sint32(&value, &name, number),
             FieldType::SInt64 => todo!(),
         }?;
         Ok(Some(field))
@@ -169,6 +170,14 @@ fn try_new_int32(value: &Value, name: &str, number: u32) -> Result<Field, FieldE
     let v = parse_i32(value, name)?;
     Ok(Field {
         kind: FieldKind::Int32(v),
+        number,
+    })
+}
+
+fn try_new_sint32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_i32(value, name)?;
+    Ok(Field {
+        kind: FieldKind::SInt32(v),
         number,
     })
 }
@@ -249,6 +258,9 @@ impl Field {
             }
             FieldKind::Int32(v) => {
                 writer.write_int32_field(self.number, *v);
+            }
+            FieldKind::SInt32(v) => {
+                writer.write_sint32_field(self.number, *v);
             }
         }
     }

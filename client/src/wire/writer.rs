@@ -78,11 +78,18 @@ impl Writer {
     pub fn write_int32_field(&mut self, number: u32, value: i32) {
         let tag = (number << 3) | WireType::VarInt as u32;
         self.write_varint(tag as u64);
-        // Sign-extend i32 → i64, then reinterpret as u64. Negative values
-        // therefore encode as a 10-byte varint (full two's-complement u64),
-        // matching the protobuf spec for `int32`. For `sint32` semantics
-        // (zigzag) use a distinct helper.
+        // Sign-extend i32 → i64, then reinterpret as u64. Negative values therefore encode
+        // as a 10-byte varint (full two's-complement u64),
         self.write_varint(value as i64 as u64);
+    }
+
+    pub fn write_sint32_field(&mut self, number: u32, value: i32) {
+        let tag = (number << 3) | WireType::VarInt as u32;
+        self.write_varint(tag as u64);
+        // Zigzag-encode the signed value before the varint. Small negatives stay small on the wire
+        // (unlike `int32`, where any negative is 10 bytes)
+        let zigzag = ((value as u32) << 1) ^ ((value >> 31) as u32);
+        self.write_varint(zigzag as u64);
     }
 
     pub fn begin_grpc_frame(&mut self) {
@@ -156,5 +163,14 @@ mod tests {
                 0x08, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01
             ]
         );
+    }
+
+    #[test]
+    fn write_sint32_negative_uses_zigzag() {
+        // -1 zigzags to 1, so a single payload byte — contrast with the
+        // 10-byte int32 encoding of the same value.
+        let mut w = Writer::new();
+        w.write_sint32_field(1, -1);
+        assert_eq!(w.bytes(), [0x08, 0x01]);
     }
 }
