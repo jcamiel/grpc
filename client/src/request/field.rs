@@ -59,7 +59,7 @@ pub fn parse_fields(
             .fields
             .iter()
             .find(|f| f.name.as_deref() == Some(&name))
-            .ok_or_else(|| FieldError::UnknownJsonField {
+            .ok_or(FieldError::UnknownJsonField {
                 field: name.clone(),
                 type_name: message.fqn.clone(),
             })?;
@@ -142,7 +142,7 @@ impl Field {
             FieldType::Int32 => try_new_int32(&value, &name, number),
             FieldType::Fixed64 => todo!(),
             FieldType::Fixed32 => todo!(),
-            FieldType::Bool => todo!(),
+            FieldType::Bool => try_new_bool(&value, &name, number),
             FieldType::String => try_new_string(value, &name, number),
             FieldType::Group => todo!(),
             FieldType::Message => try_new_message(descriptor, symbols, value, &name, number),
@@ -182,6 +182,20 @@ fn try_new_sint32(value: &Value, name: &str, number: u32) -> Result<Field, Field
     })
 }
 
+fn try_new_bool(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let Value::Bool(v) = value else {
+        return Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "boolean".to_string(),
+            actual: type_of_value(value).to_string(),
+        });
+    };
+    Ok(Field {
+        kind: FieldKind::Bool(*v),
+        number,
+    })
+}
+
 fn try_new_message(
     descriptor: &FieldDescriptorProto,
     symbols: &SymbolTable,
@@ -199,13 +213,12 @@ fn try_new_message(
         });
     };
     let type_name = descriptor.type_name.as_deref().unwrap();
-    let msg_descriptor =
-        symbols
-            .find_message(type_name)
-            .ok_or_else(|| FieldError::UnresolvedType {
-                field: name.to_string(),
-                type_name: type_name.to_string(),
-            })?;
+    let msg_descriptor = symbols
+        .find_message(type_name)
+        .ok_or(FieldError::UnresolvedType {
+            field: name.to_string(),
+            type_name: type_name.to_string(),
+        })?;
     let fields = parse_fields(msg_descriptor, symbols, obj)?;
     Ok(Field {
         kind: FieldKind::Message(fields),
@@ -238,7 +251,9 @@ impl Field {
             FieldKind::String(value) => {
                 writer.write_string_field(self.number, &value);
             }
-            FieldKind::Bool(_) => todo!(),
+            FieldKind::Bool(v) => {
+                writer.write_bool_field(self.number, *v);
+            }
             FieldKind::Array(_) => todo!(),
             FieldKind::Message(fields) => {
                 // Sort sub-fields by their number so encoding is deterministic.
@@ -277,7 +292,7 @@ fn parse_i32(value: &Value, name: &str) -> Result<i32, FieldError> {
     };
     n.as_i64()
         .and_then(|v| i32::try_from(v).ok())
-        .ok_or_else(|| FieldError::JsonNumberOutOfRange {
+        .ok_or(FieldError::JsonNumberOutOfRange {
             field: name.to_string(),
             value: n.to_string(),
         })

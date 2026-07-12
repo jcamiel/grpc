@@ -92,6 +92,13 @@ impl Writer {
         self.write_varint(zigzag as u64);
     }
 
+    pub fn write_bool_field(&mut self, number: u32, value: bool) {
+        let tag = (number << 3) | WireType::VarInt as u32;
+        self.write_varint(tag as u64);
+        // `bool as u64` is defined to be 0 or 1, so this is the whole encoding.
+        self.write_varint(value as u64);
+    }
+
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
         // The length will be patched by [`Self::end_grpc_frame`].
@@ -171,6 +178,13 @@ mod tests {
         // 10-byte int32 encoding of the same value.
         let mut w = Writer::new();
         w.write_sint32_field(1, -1);
+        assert_eq!(w.bytes(), [0x08, 0x01]);
+    }
+
+    #[test]
+    fn write_bool() {
+        let mut w = Writer::new();
+        w.write_bool_field(1, true);
         assert_eq!(w.bytes(), [0x08, 0x01]);
     }
 }
