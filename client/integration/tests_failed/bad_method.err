@@ -1,0 +1,1 @@
+error: Error running method 'helloworld.Greeter/SayGoobye': service 'helloworld.Greeter' does not include a method 'SayGoobye'
