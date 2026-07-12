@@ -15,36 +15,14 @@
  * limitations under the License.
  *
  */
-use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-use super::Request;
-use super::body::RequestBody;
-use crate::schema::descriptor::{FieldDescriptorProto, FieldLabel, FieldType};
+use crate::schema::descriptor::{DescriptorProto, FieldDescriptorProto, FieldLabel, FieldType};
 use crate::schema::symbols::SymbolTable;
 use crate::wire::writer::Writer;
-
-impl Request<'_> {
-    pub fn encode(&self, writer: &mut Writer) {
-        self.body().encode(writer);
-    }
-}
-
-impl RequestBody {
-    pub fn encode(&self, writer: &mut Writer) {
-        // Sort fields with number before encoding so our fields are always encoded in the
-        // same order (based on the descriptor).
-        let mut fields: Vec<&Field> = self.fields().iter().collect();
-        fields.sort_by_key(|f| f.number);
-
-        for field in fields.iter() {
-            field.encode(writer);
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Field {
@@ -52,15 +30,45 @@ pub struct Field {
     number: u32,
 }
 
+impl Field {
+    pub fn number(&self) -> u32 {
+        self.number
+    }
+}
+
 #[derive(Debug)]
 pub enum FieldKind {
     String(String),
     Bool(bool),
     Array(Vec<Field>),
-    Message(HashMap<String, Field>),
+    Message(Vec<Field>),
     SFixed32(i32),
 }
 
+/// Match every key of `json` against `message`'s field descriptors and recurse.
+pub fn parse_fields(
+    message: &DescriptorProto,
+    symbols: &SymbolTable,
+    json: Map<String, Value>,
+) -> Result<Vec<Field>, FieldError> {
+    let mut fields = Vec::new();
+    for (name, value) in json {
+        let field_desc = message
+            .fields
+            .iter()
+            .find(|f| f.name.as_deref() == Some(&name))
+            .ok_or_else(|| FieldError::UnknownJsonField {
+                field: name.clone(),
+                type_name: message.fqn.clone(),
+            })?;
+        if let Some(field) = Field::try_new(field_desc, symbols, value)? {
+            fields.push(field);
+        }
+    }
+    Ok(fields)
+}
+
+#[derive(Debug)]
 pub enum FieldError {
     /// The JSON input type doesn't match the expected type given the actual descripor
     InvalidJsonInputType {
@@ -175,47 +183,27 @@ impl Field {
         number: u32,
     ) -> Result<Field, FieldError> {
         assert!(descriptor.type_name.is_some());
-        match value {
-            // Do we need to distinguish between message and map ?
-            Value::Object(value) => {
-                let type_name = descriptor.type_name.as_deref().unwrap();
-                let msg_descriptor =
-                    symbols
-                        .find_message(type_name)
-                        .ok_or(FieldError::UnresolvedType {
-                            field: name.to_string(),
-                            type_name: type_name.to_string(),
-                        })?;
-                let mut map = HashMap::new();
-                for (field_name, field_value) in value.into_iter() {
-                    let field_desc = msg_descriptor
-                        .fields
-                        .iter()
-                        .find(|f| f.name.as_deref() == Some(&field_name))
-                        .ok_or(FieldError::UnknownJsonField {
-                            field: field_name.clone(),
-                            type_name: msg_descriptor.fqn.to_string(),
-                        })?;
-                    let field = Field::try_new(field_desc, symbols, field_value)?;
-                    if let Some(field) = field {
-                        map.insert(field_name, field);
-                    }
-                }
-                let kind = FieldKind::Message(map);
-                let field = Field { kind, number };
-                Ok(field)
-            }
-            actual => {
-                let expected = "object".to_string();
-                let actual = type_of_value(&actual).to_string();
-                let err = FieldError::InvalidJsonInputType {
+        // Do we need to distinguish between message and map ?
+        let Value::Object(obj) = value else {
+            return Err(FieldError::InvalidJsonInputType {
+                field: name.to_string(),
+                expected: "object".to_string(),
+                actual: type_of_value(&value).to_string(),
+            });
+        };
+        let type_name = descriptor.type_name.as_deref().unwrap();
+        let msg_descriptor =
+            symbols
+                .find_message(type_name)
+                .ok_or_else(|| FieldError::UnresolvedType {
                     field: name.to_string(),
-                    expected,
-                    actual,
-                };
-                Err(err)
-            }
-        }
+                    type_name: type_name.to_string(),
+                })?;
+        let fields = parse_fields(msg_descriptor, symbols, obj)?;
+        Ok(Field {
+            kind: FieldKind::Message(fields),
+            number,
+        })
     }
 
     fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldError> {
@@ -246,15 +234,15 @@ impl Field {
             }
             FieldKind::Bool(_) => todo!(),
             FieldKind::Array(_) => todo!(),
-            FieldKind::Message(map) => {
+            FieldKind::Message(fields) => {
                 // Sort sub-fields by their number so encoding is deterministic.
-                let mut fields: Vec<&Field> = map.values().collect();
-                fields.sort_by_key(|f| f.number);
+                let mut sorted: Vec<&Field> = fields.iter().collect();
+                sorted.sort_by_key(|f| f.number);
 
                 // Encode the sub-message into a scratch writer, then write it as a length-delimited
                 // sub-message on the outer writer.
                 let mut inner = Writer::new();
-                for field in fields {
+                for field in sorted {
                     field.encode(&mut inner);
                 }
                 writer.write_message_field(self.number, inner.bytes());

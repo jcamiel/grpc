@@ -27,13 +27,10 @@ use std::process::ExitCode;
 use clap::Parser;
 use url::Url;
 
-use client::Client;
+use client::{Client, RunnerError};
 use schema::pool::DescriptorPool;
 
-/// Rust prototype of the gRPC code paths Hurl will eventually grow.
-///
-/// At this stage the only thing the binary does is load a `.protoset` file
-/// and hand its bytes to the decoder entry point in [`reader`].
+/// Rust prototype of the gRPC support for Hurl.
 #[derive(Parser, Debug)]
 #[command(name = "client", version, about, long_about = None)]
 struct Args {
@@ -58,11 +55,16 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    println!("{:#?}", descriptor_pool);
 
     // Without a URL there is nothing to send: print the decoded pool and exit.
     let Some(url) = args.url else {
-        return ExitCode::SUCCESS;
+        return match print_ds(&descriptor_pool) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        };
     };
 
     // Request body: use `--data` if provided, otherwise read from standard input.
@@ -89,4 +91,13 @@ fn main() -> ExitCode {
     };
 
     ExitCode::SUCCESS
+}
+
+fn print_ds(descriptor_pool: &DescriptorPool) -> Result<(), RunnerError> {
+    println!("{:#?}", descriptor_pool);
+    let symbols = descriptor_pool
+        .symbols()
+        .map_err(RunnerError::SymbolBuild)?;
+    println!("{:#?}", symbols);
+    Ok(())
 }

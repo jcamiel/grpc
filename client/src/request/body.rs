@@ -19,9 +19,10 @@ use serde_json::{Map, Value};
 use std::fmt;
 use std::fmt::Formatter;
 
-use super::encoder::Field;
+use super::field::{Field, parse_fields};
 use crate::schema::descriptor::DescriptorProto;
 use crate::schema::symbols::SymbolTable;
+use crate::wire::writer::Writer;
 
 #[derive(Debug)]
 pub struct RequestBody {
@@ -30,35 +31,20 @@ pub struct RequestBody {
 
 #[derive(Debug)]
 pub enum RequestBodyError {
-    InvalidJson {
-        error: String,
-    },
+    InvalidJson { error: String },
     NotJsonObject,
-    /// The input JSON request body has a `field` which is not present in the input message with
-    /// type `input_message`.
-    UnknownJsonField {
-        field: String,
-        input_message: String,
-    },
-    InvalidField {
-        error: String,
-    },
+    InvalidField { error: String },
 }
 
 impl fmt::Display for RequestBodyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             RequestBodyError::InvalidJson { error } => {
-                write!(f, "invalid request body, {error}")
+                write!(f, "invalid JSON request body, {error}")
             }
-            RequestBodyError::NotJsonObject => write!(f, "expecting JSON Object"),
-            RequestBodyError::UnknownJsonField {
-                input_message,
-                field,
-            } => write!(
-                f,
-                "invalid request body, input message type '{input_message}' has no known field named '{field}'"
-            ),
+            RequestBodyError::NotJsonObject => {
+                write!(f, "invalid request body, expecting JSON Object")
+            }
             RequestBodyError::InvalidField { error } => write!(f, "invalid request body, {error}"),
         }
     }
@@ -71,49 +57,34 @@ impl RequestBody {
         symbols: &SymbolTable,
     ) -> Result<RequestBody, RequestBodyError> {
         let bytes = bytes.trim_ascii();
-        let mut fields = Vec::new();
-        let json_body = if !bytes.is_empty() {
-            let v: Value =
+        let json_body = if bytes.is_empty() {
+            Map::new()
+        } else {
+            let value: Value =
                 serde_json::from_slice(bytes).map_err(|e| RequestBodyError::InvalidJson {
                     error: e.to_string(),
                 })?;
-            match v {
-                Value::Null
-                | Value::Bool(_)
-                | Value::Number(_)
-                | Value::String(_)
-                | Value::Array(_) => return Err(RequestBodyError::NotJsonObject),
-                Value::Object(map) => map,
-            }
-        } else {
-            Map::new()
+            let Value::Object(obj) = value else {
+                return Err(RequestBodyError::NotJsonObject);
+            };
+            obj
         };
-
-        // Iterate on each field
-        for (name, value) in json_body.into_iter() {
-            let field_desc = input_message
-                .fields
-                .iter()
-                .find(|f| f.name.as_deref() == Some(&name))
-                .ok_or(RequestBodyError::UnknownJsonField {
-                    field: name.clone(),
-                    input_message: input_message.fqn.clone(),
-                })?;
-
-            let field = Field::try_new(field_desc, symbols, value).map_err(|e| {
-                RequestBodyError::InvalidField {
-                    error: e.to_string(),
-                }
-            })?;
-            if let Some(field) = field {
-                fields.push(field);
+        let fields = parse_fields(input_message, symbols, json_body).map_err(|e| {
+            RequestBodyError::InvalidField {
+                error: e.to_string(),
             }
-        }
-
+        })?;
         Ok(RequestBody { fields })
     }
 
-    pub fn fields(&self) -> &[Field] {
-        &self.fields
+    pub fn encode(&self, writer: &mut Writer) {
+        // Sort fields with number before encoding so our fields are always encoded in the
+        // same order (based on the descriptor).
+        let mut fields: Vec<&Field> = self.fields.iter().collect();
+        fields.sort_by_key(|f| f.number());
+
+        for field in fields.iter() {
+            field.encode(writer);
+        }
     }
 }

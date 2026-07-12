@@ -16,7 +16,7 @@
  *
  */
 pub mod body;
-pub mod encoder;
+pub mod field;
 pub mod request;
 
 pub use request::Request;
