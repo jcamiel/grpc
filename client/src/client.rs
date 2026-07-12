@@ -19,6 +19,8 @@ use std::fmt::Formatter;
 use std::path::Path;
 use std::{fmt, fs};
 
+use base64::prelude::*;
+
 use hurl::http::{Header, HeaderVec, RequestedHttpVersion::Http2PriorKnowledge};
 use hurl::runner;
 use hurl::runner::{Input, RunnerOptionsBuilder, VariableSet};
@@ -125,14 +127,13 @@ impl Client {
         request.encode(&mut writer);
         writer.end_grpc_frame();
 
-        let body_path = Path::new("build/body.in");
+        // We make a base64 body string to pass it to a Hurl request
         let body = writer.bytes();
-        fs::write(body_path, body).unwrap();
-
+        let body = BASE64_STANDARD.encode(body);
         let content = format!(
             r#"#
             POST {url}
-            file,build/body.in;
+            base64,{body};
         "#
         );
         let filename = Input::new("sample.hurl");
@@ -177,8 +178,11 @@ impl Client {
         // println!("{result:#?}");
         println!("curl cmd:     {}", entry.curl_cmd);
         println!("grpc-status:  {grpc_status}");
-        println!("grpc-message: {grpc_message}");
-
+        if grpc_message.is_empty() {
+            println!("grpc-message:");
+        } else {
+            println!("grpc-message: {grpc_message}");
+        }
         Ok(())
     }
 }

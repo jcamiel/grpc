@@ -80,7 +80,7 @@ impl RequestBody {
     pub fn encode(&self, writer: &mut Writer) {
         // Sort fields with number before encoding so our fields are always encoded in the
         // same order (based on the descriptor).
-        let mut fields: Vec<&Field> = self.fields.iter().collect();
+        let mut fields = self.fields.iter().collect::<Vec<_>>();
         fields.sort_by_key(|f| f.number());
 
         for field in fields.iter() {
