@@ -2,5 +2,5 @@
 
 client \
   --data '{"payload":{"text":"foo"}}' \
-  --protoset ../../proto/echo.protoset \
+  --protoset ../proto/echo.protoset \
   http://localhost:50051/echo.Echo/Echo

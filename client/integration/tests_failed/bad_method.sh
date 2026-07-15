@@ -2,5 +2,5 @@
 
 client \
   --data '{"name":"bob"}' \
-  --protoset ../../proto/helloworld.protoset \
+  --protoset ../proto/helloworld.protoset \
   http://localhost:50051/helloworld.Greeter/SayGoobye
