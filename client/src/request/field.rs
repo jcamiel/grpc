@@ -50,6 +50,9 @@ pub enum FieldKind {
     SFixed32(i32),
     Int32(i32),
     SInt32(i32),
+    /// All unsigned uint32 fields
+    UInt32(u32),
+    Fixed32(u32),
 }
 
 /// Matches every key of `json` against `message`'s field descriptors and recurse.
@@ -152,7 +155,7 @@ impl Field {
             FieldType::Group => todo!(),
             FieldType::Message => try_new_message(descriptor, symbols, value, &name, number),
             FieldType::Bytes => todo!(),
-            FieldType::UInt32 => todo!(),
+            FieldType::UInt32 => try_new_uint32(&value, &name, number),
             FieldType::Enum => todo!(),
             FieldType::SFixed32 => try_new_sfixed32(&value, &name, number),
             FieldType::SFixed64 => todo!(),
@@ -163,6 +166,7 @@ impl Field {
     }
 }
 
+/// Creates a new `Field` instance with from a JSON `value` representing an `sfixed32`.
 fn try_new_sfixed32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_i32(value, name)?;
     Ok(Field {
@@ -171,6 +175,8 @@ fn try_new_sfixed32(value: &Value, name: &str, number: u32) -> Result<Field, Fie
     })
 }
 
+/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// representing an `int32`.
 fn try_new_int32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_i32(value, name)?;
     Ok(Field {
@@ -179,6 +185,8 @@ fn try_new_int32(value: &Value, name: &str, number: u32) -> Result<Field, FieldE
     })
 }
 
+/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// representing a `sint32`.
 fn try_new_sint32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_i32(value, name)?;
     Ok(Field {
@@ -187,6 +195,8 @@ fn try_new_sint32(value: &Value, name: &str, number: u32) -> Result<Field, Field
     })
 }
 
+/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// representing a `bool`.
 fn try_new_bool(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let Value::Bool(v) = value else {
         return Err(FieldError::InvalidJsonInputType {
@@ -201,6 +211,18 @@ fn try_new_bool(value: &Value, name: &str, number: u32) -> Result<Field, FieldEr
     })
 }
 
+/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// representing an `uint32`.
+fn try_new_uint32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_u32(value, name)?;
+    Ok(Field {
+        kind: FieldKind::UInt32(v),
+        number,
+    })
+}
+
+/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// representing a message.
 fn try_new_message(
     descriptor: &FieldDescriptorProto,
     symbols: &SymbolTable,
@@ -231,6 +253,8 @@ fn try_new_message(
     })
 }
 
+/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// representing a message string.
 fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldError> {
     match value {
         Value::String(value) => {
@@ -253,12 +277,8 @@ fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldE
 impl Field {
     pub fn encode(&self, writer: &mut Writer) {
         match &self.kind {
-            FieldKind::String(value) => {
-                writer.write_string_field(self.number, &value);
-            }
-            FieldKind::Bool(v) => {
-                writer.write_bool_field(self.number, *v);
-            }
+            FieldKind::String(value) => writer.write_string_field(self.number, &value),
+            FieldKind::Bool(v) => writer.write_bool_field(self.number, *v),
             FieldKind::Array(_) => todo!(),
             FieldKind::Message(fields) => {
                 // Sort sub-fields by their number so encoding is deterministic.
@@ -274,15 +294,11 @@ impl Field {
                 }
                 writer.write_message_field(self.number, inner.bytes());
             }
-            FieldKind::SFixed32(v) => {
-                writer.write_sfixed32_field(self.number, *v);
-            }
-            FieldKind::Int32(v) => {
-                writer.write_int32_field(self.number, *v);
-            }
-            FieldKind::SInt32(v) => {
-                writer.write_sint32_field(self.number, *v);
-            }
+            FieldKind::SFixed32(v) => writer.write_sfixed32_field(self.number, *v),
+            FieldKind::Int32(v) => writer.write_int32_field(self.number, *v),
+            FieldKind::SInt32(v) => writer.write_sint32_field(self.number, *v),
+            FieldKind::UInt32(v) => writer.write_uint32_field(self.number, *v),
+            FieldKind::Fixed32(_) => todo!(),
         }
     }
 }
@@ -298,6 +314,23 @@ fn parse_i32(value: &Value, name: &str) -> Result<i32, FieldError> {
     };
     n.as_i64()
         .and_then(|v| i32::try_from(v).ok())
+        .ok_or(FieldError::JsonNumberOutOfRange {
+            field: name.to_string(),
+            value: n.to_string(),
+        })
+}
+
+/// Extracts a `u32` from a JSON [`Value`].
+fn parse_u32(value: &Value, name: &str) -> Result<u32, FieldError> {
+    let Value::Number(n) = value else {
+        return Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "integer".to_string(),
+            actual: type_of_value(value).to_string(),
+        });
+    };
+    n.as_u64()
+        .and_then(|v| u32::try_from(v).ok())
         .ok_or(FieldError::JsonNumberOutOfRange {
             field: name.to_string(),
             value: n.to_string(),
