@@ -38,16 +38,21 @@ impl Field {
 
 #[derive(Debug)]
 pub enum FieldKind {
+    /// A string field
     String(String),
+    /// A boolean field
     Bool(bool),
+    /// A repeated field
     Array(Vec<Field>),
+    /// A message field
     Message(Vec<Field>),
+    /// All signed int32 fields
     SFixed32(i32),
     Int32(i32),
     SInt32(i32),
 }
 
-/// Match every key of `json` against `message`'s field descriptors and recurse.
+/// Matches every key of `json` against `message`'s field descriptors and recurse.
 pub fn parse_fields(
     message: &DescriptorProto,
     symbols: &SymbolTable,
@@ -261,7 +266,8 @@ impl Field {
                 sorted.sort_by_key(|f| f.number);
 
                 // Encode the sub-message into a scratch writer, then write it as a length-delimited
-                // sub-message on the outer writer.
+                // sub-message on the outer writer. We need this because we don't knwo the size of
+                // all messa's fields before encoding.
                 let mut inner = Writer::new();
                 for field in sorted {
                     field.encode(&mut inner);
@@ -281,7 +287,7 @@ impl Field {
     }
 }
 
-/// Extract an `i32` from a JSON [`Value`].
+/// Extracts an `i32` from a JSON [`Value`].
 fn parse_i32(value: &Value, name: &str) -> Result<i32, FieldError> {
     let Value::Number(n) = value else {
         return Err(FieldError::InvalidJsonInputType {

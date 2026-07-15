@@ -22,29 +22,35 @@ pub struct Writer {
 }
 
 impl Writer {
+    /// Creates a new writer.
     pub fn new() -> Self {
         let output = Vec::new();
         Writer { output }
     }
 
+    /// Returns the number of written bytes.
     fn len(&self) -> usize {
         self.output.len()
     }
 
+    /// Returns the written bytes.
     pub fn bytes(&self) -> &[u8] {
         &self.output
     }
 
+    /// Writes a single byte.
     fn write_byte(&mut self, n: u8) {
         self.output.push(n);
     }
 
+    /// Writes some bytes.
     fn write_bytes(&mut self, value: &[u8]) {
         for &b in value {
             self.write_byte(b);
         }
     }
 
+    /// Writes a varint.
     pub fn write_varint(&mut self, mut n: u64) {
         while n >= 0x80 {
             self.write_byte((n as u8) | 0x80);
@@ -55,6 +61,7 @@ impl Writer {
 }
 
 impl Writer {
+    /// Writes a protobuf string field.
     pub fn write_string_field(&mut self, number: u32, value: &str) {
         let tag = (number << 3) | WireType::Len as u32;
         self.write_varint(tag as u64);
@@ -62,6 +69,7 @@ impl Writer {
         self.write_bytes(value.as_bytes());
     }
 
+    /// Writes a protobuf message field (payload is the encoded bytes).
     pub fn write_message_field(&mut self, number: u32, payload: &[u8]) {
         let tag = (number << 3) | WireType::Len as u32;
         self.write_varint(tag as u64);
@@ -69,12 +77,14 @@ impl Writer {
         self.write_bytes(payload);
     }
 
+    /// Writes a sfixed32 integer field.
     pub fn write_sfixed32_field(&mut self, number: u32, value: i32) {
         let tag = (number << 3) | WireType::I32 as u32;
         self.write_varint(tag as u64);
         self.write_bytes(&value.to_le_bytes());
     }
 
+    /// Writes a int32 integer field.
     pub fn write_int32_field(&mut self, number: u32, value: i32) {
         let tag = (number << 3) | WireType::VarInt as u32;
         self.write_varint(tag as u64);
@@ -83,6 +93,7 @@ impl Writer {
         self.write_varint(value as i64 as u64);
     }
 
+    /// Writes a sint32 integer field.
     pub fn write_sint32_field(&mut self, number: u32, value: i32) {
         let tag = (number << 3) | WireType::VarInt as u32;
         self.write_varint(tag as u64);
@@ -92,6 +103,7 @@ impl Writer {
         self.write_varint(zigzag as u64);
     }
 
+    /// Writes a boolean field.
     pub fn write_bool_field(&mut self, number: u32, value: bool) {
         let tag = (number << 3) | WireType::VarInt as u32;
         self.write_varint(tag as u64);
@@ -99,6 +111,7 @@ impl Writer {
         self.write_varint(value as u64);
     }
 
+    /// Writes the begin of a gRPC frame.
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
         // The length will be patched by [`Self::end_grpc_frame`].
@@ -106,6 +119,7 @@ impl Writer {
         self.write_bytes(&[0; 4]);
     }
 
+    /// Writes the end of a gRPC frame.
     pub fn end_grpc_frame(&mut self) {
         let payload_len = (self.len() - 5) as u32;
         self.output[1..5].copy_from_slice(&payload_len.to_be_bytes());
