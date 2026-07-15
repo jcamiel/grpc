@@ -149,7 +149,7 @@ impl Field {
             FieldType::UInt64 => todo!(),
             FieldType::Int32 => try_new_int32(&value, &name, number),
             FieldType::Fixed64 => todo!(),
-            FieldType::Fixed32 => todo!(),
+            FieldType::Fixed32 => try_new_fixed32(&value, &name, number),
             FieldType::Bool => try_new_bool(&value, &name, number),
             FieldType::String => try_new_string(value, &name, number),
             FieldType::Group => todo!(),
@@ -166,7 +166,7 @@ impl Field {
     }
 }
 
-/// Creates a new `Field` instance with from a JSON `value` representing an `sfixed32`.
+/// Creates a new `Field` instance from a JSON `value` representing an `sfixed32`.
 fn try_new_sfixed32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_i32(value, name)?;
     Ok(Field {
@@ -175,7 +175,7 @@ fn try_new_sfixed32(value: &Value, name: &str, number: u32) -> Result<Field, Fie
     })
 }
 
-/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// Creates a new `Field` instance, named `name` and numbered `number`, from a JSON `value`
 /// representing an `int32`.
 fn try_new_int32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_i32(value, name)?;
@@ -185,7 +185,7 @@ fn try_new_int32(value: &Value, name: &str, number: u32) -> Result<Field, FieldE
     })
 }
 
-/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// Creates a new `Field` instance, named `name` and numbered `number`, from a JSON `value`
 /// representing a `sint32`.
 fn try_new_sint32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_i32(value, name)?;
@@ -195,7 +195,7 @@ fn try_new_sint32(value: &Value, name: &str, number: u32) -> Result<Field, Field
     })
 }
 
-/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// Creates a new `Field` instance, named `name` and numbered `number`, from a JSON `value`
 /// representing a `bool`.
 fn try_new_bool(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let Value::Bool(v) = value else {
@@ -211,7 +211,17 @@ fn try_new_bool(value: &Value, name: &str, number: u32) -> Result<Field, FieldEr
     })
 }
 
-/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// Creates a new `Field` instance, named `name` and numbered `number`, from a JSON `value`
+/// representing a `fixed32`.
+fn try_new_fixed32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_u32(value, name)?;
+    Ok(Field {
+        kind: FieldKind::Fixed32(v),
+        number,
+    })
+}
+
+/// Creates a new `Field` instance, named `name` and numbered `number`, from a JSON `value`
 /// representing an `uint32`.
 fn try_new_uint32(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_u32(value, name)?;
@@ -221,7 +231,7 @@ fn try_new_uint32(value: &Value, name: &str, number: u32) -> Result<Field, Field
     })
 }
 
-/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// Creates a new `Field` instance, named `name` and numbered `number`, from a JSON `value`
 /// representing a message.
 fn try_new_message(
     descriptor: &FieldDescriptorProto,
@@ -253,7 +263,7 @@ fn try_new_message(
     })
 }
 
-/// Creates a new `Field` instance, named `name` and numbered `number` with from a JSON `value`
+/// Creates a new `Field` instance, named `name` and numbered `number`, from a JSON `value`
 /// representing a message string.
 fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldError> {
     match value {
@@ -298,7 +308,7 @@ impl Field {
             FieldKind::Int32(v) => writer.write_int32_field(self.number, *v),
             FieldKind::SInt32(v) => writer.write_sint32_field(self.number, *v),
             FieldKind::UInt32(v) => writer.write_uint32_field(self.number, *v),
-            FieldKind::Fixed32(_) => todo!(),
+            FieldKind::Fixed32(v) => writer.write_fixed32_field(self.number, *v),
         }
     }
 }
