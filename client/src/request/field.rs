@@ -57,29 +57,6 @@ pub enum FieldKind {
     SFixed64(i64),
 }
 
-/// Matches every key of `json` against `message`'s field descriptors and recurse.
-pub fn parse_fields(
-    message: &DescriptorProto,
-    symbols: &SymbolTable,
-    json: Map<String, Value>,
-) -> Result<Vec<Field>, FieldError> {
-    let mut fields = Vec::new();
-    for (name, value) in json {
-        let field_desc = message
-            .fields
-            .iter()
-            .find(|f| f.name.as_deref() == Some(&name))
-            .ok_or(FieldError::UnknownJsonField {
-                field: name.clone(),
-                type_name: message.fqn.clone(),
-            })?;
-        if let Some(field) = Field::try_new(field_desc, symbols, value)? {
-            fields.push(field);
-        }
-    }
-    Ok(fields)
-}
-
 #[derive(Debug)]
 pub enum FieldError {
     /// The JSON input type doesn't match the expected type given the actual descripor
@@ -164,8 +141,56 @@ impl Field {
             FieldType::SInt32 => try_new_sint32(&value, &name, number),
             FieldType::SInt64 => todo!(),
         }?;
-        Ok(Some(field))
+
+        if !descriptor.has_explicit_presence() && field.equals_default() {
+            Ok(None)
+        } else {
+            Ok(Some(field))
+        }
     }
+
+    /// Returns `true` if this field is equal to its default value.
+    ///
+    /// We're using it to transmit only the fields that have non-defualt value.
+    fn equals_default(&self) -> bool {
+        match &self.kind {
+            FieldKind::String(v) => v.is_empty(),
+            FieldKind::Bool(v) => !v,
+            FieldKind::Array(_) => false,
+            // A nested message with zero set sub-fields is canonicalized to "unset" on the wire.
+            // We may need to adapt this code if a user want to explicitely send an empty message.
+            FieldKind::Message(v) => v.is_empty(),
+            FieldKind::SFixed32(v) => *v == 0,
+            FieldKind::Int32(v) => *v == 0,
+            FieldKind::SInt32(v) => *v == 0,
+            FieldKind::UInt32(v) => *v == 0,
+            FieldKind::Fixed32(v) => *v == 0,
+            FieldKind::SFixed64(v) => *v == 0,
+        }
+    }
+}
+
+/// Matches every key of `json` against `message`'s field descriptors and recurse.
+pub fn parse_fields(
+    message: &DescriptorProto,
+    symbols: &SymbolTable,
+    json: Map<String, Value>,
+) -> Result<Vec<Field>, FieldError> {
+    let mut fields = Vec::new();
+    for (name, value) in json {
+        let field_desc = message
+            .fields
+            .iter()
+            .find(|f| f.name.as_deref() == Some(&name))
+            .ok_or(FieldError::UnknownJsonField {
+                field: name.clone(),
+                type_name: message.fqn.clone(),
+            })?;
+        if let Some(field) = Field::try_new(field_desc, symbols, value)? {
+            fields.push(field);
+        }
+    }
+    Ok(fields)
 }
 
 /// Creates a new `Field` instance from a JSON `value` representing an `sfixed32`.
