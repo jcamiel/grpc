@@ -93,8 +93,8 @@ fn main() -> ExitCode {
     println!("curl cmd:     {}", r.curl_cmd);
     println!("grpc-status:  {}", r.grpc_status);
     match r.grpc_message {
-        Some(m) => println!("grpc-message: {m}"),
-        None => println!("grpc-message:"),
+        Some(m) if !m.is_empty() => println!("grpc-message: {m}"),
+        _ => println!("grpc-message:"),
     }
     ExitCode::SUCCESS
 }
