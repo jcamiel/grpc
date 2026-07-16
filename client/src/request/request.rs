@@ -19,24 +19,19 @@ use url::Url;
 
 use super::body::RequestBody;
 use crate::client::RunnerError;
-use crate::schema::descriptor::{DescriptorProto, MethodDescriptorProto, ServiceDescriptorProto};
 use crate::schema::pool::DescriptorPool;
 use crate::wire::writer::Writer;
 
 /// Represents a gRPC request.
 #[derive(Debug)]
-pub struct Request<'fds> {
+pub struct Request {
     /// Fully qualified service name
     service_name: String,
     method_name: String,
-    service: &'fds ServiceDescriptorProto,
-    method: &'fds MethodDescriptorProto,
-    input_message: &'fds DescriptorProto,
-    output_message: &'fds DescriptorProto,
     request_body: RequestBody,
 }
 
-impl<'fds> Request<'fds> {
+impl Request {
     pub fn service_name(&self) -> &str {
         &self.service_name
     }
@@ -47,7 +42,7 @@ impl<'fds> Request<'fds> {
 
     /// Build a gRPC request given a set of descriptor, a URL and a body.
     pub fn try_from(
-        descriptor_pool: &'fds DescriptorPool,
+        descriptor_pool: &DescriptorPool,
         url: &Url,
         body: &[u8],
     ) -> Result<Self, RunnerError> {
@@ -83,7 +78,7 @@ impl<'fds> Request<'fds> {
                     method: method_name.clone(),
                     type_name: method.input_type.clone().unwrap_or_default(),
                 })?;
-        let output_message =
+        let _output_message =
             symbols
                 .resolve_method_output(method)
                 .ok_or(RunnerError::UnresolvedType {
@@ -105,17 +100,13 @@ impl<'fds> Request<'fds> {
         let request = Request {
             service_name: svc_fqn,
             method_name,
-            service,
-            method,
-            input_message,
-            output_message,
             request_body,
         };
         Ok(request)
     }
 }
 
-impl Request<'_> {
+impl Request {
     pub fn encode(&self, writer: &mut Writer) {
         self.request_body.encode(writer);
     }
