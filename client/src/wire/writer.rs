@@ -126,6 +126,13 @@ impl Writer {
         self.write_bytes(&value.to_le_bytes());
     }
 
+    /// Writes a sfixed64 integer field.
+    pub fn write_sfixed64_field(&mut self, number: u32, value: i64) {
+        let tag = (number << 3) | WireType::I64 as u32;
+        self.write_varint(tag as u64);
+        self.write_bytes(&value.to_le_bytes());
+    }
+
     /// Writes the begin of a gRPC frame.
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
@@ -231,5 +238,16 @@ mod tests {
         w.write_fixed32_field(1, 1);
         // tag 0x0d (I32 wire type), then LE bytes of 1
         assert_eq!(w.bytes(), [0x0d, 0x01, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn write_sfixed64() {
+        let mut w = Writer::new();
+        w.write_sfixed64_field(1, -1);
+        // tag 0x09 (I64 wire type = 1, field 1), then 8 bytes LE two's-complement -1
+        assert_eq!(
+            w.bytes(),
+            [0x09, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+        );
     }
 }

@@ -34,6 +34,14 @@ use crate::wire::writer::Writer;
 
 pub struct Client {}
 
+/// A result of running a gRPC request.
+#[derive(Debug)]
+pub struct RunResult {
+    pub curl_cmd: String,
+    pub grpc_status: u32,
+    pub grpc_message: Option<String>,
+}
+
 #[derive(Debug)]
 pub enum RunnerError {
     /// URL path isn't of the form `/pkg.Service/Method`.
@@ -73,7 +81,7 @@ impl fmt::Display for RunnerError {
                     "Error running method: URL path '{path}' is not in expected format 'service/method'"
                 )
             }
-            RunnerError::SymbolBuild(_) => write!(f, "RunnerError::SymbolBuild"),
+            RunnerError::SymbolBuild(symbol) => write!(f, "RunnerError::SymbolBuild {}", symbol),
             RunnerError::UnknownService { service, method } => write!(
                 f,
                 "Error running method '{service}/{method}': service '{service}' not found"
@@ -116,7 +124,7 @@ impl Client {
         descriptor_pool: DescriptorPool,
         url: Url,
         body: &[u8],
-    ) -> Result<(), RunnerError> {
+    ) -> Result<RunResult, RunnerError> {
         // Constructs the gRPC request
         let request = Request::try_from(&descriptor_pool, &url, body)?;
 
@@ -172,17 +180,15 @@ impl Client {
             .value
             .parse::<u32>()
             .unwrap();
-        let grpc_message = &response_headers.get("grpc-message").unwrap().value;
-
-        // println!("{result:#?}");
-        println!("curl cmd:     {}", entry.curl_cmd);
-        println!("grpc-status:  {grpc_status}");
-        if grpc_message.is_empty() {
-            println!("grpc-message:");
-        } else {
-            println!("grpc-message: {grpc_message}");
-        }
-        Ok(())
+        let grpc_message = response_headers
+            .get("grpc-message")
+            .map(|h| h.value.to_string());
+        let result = RunResult {
+            curl_cmd: entry.curl_cmd.to_string(),
+            grpc_status,
+            grpc_message,
+        };
+        Ok(result)
     }
 }
 

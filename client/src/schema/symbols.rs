@@ -157,7 +157,6 @@ fn normalize(fqn: &str) -> &str {
 }
 
 /// Utilities to add entities to the hash map.
-
 fn add_message<'fds>(
     map: &mut HashMap<String, Symbol<'fds>>,
     msg: &'fds DescriptorProto,

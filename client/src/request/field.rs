@@ -18,7 +18,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-use serde_json::{Map, Value};
+use serde_json::{Map, Number, Value};
 
 use crate::schema::descriptor::{DescriptorProto, FieldDescriptorProto, FieldLabel, FieldType};
 use crate::schema::symbols::SymbolTable;
@@ -53,6 +53,8 @@ pub enum FieldKind {
     /// All unsigned uint32 fields
     UInt32(u32),
     Fixed32(u32),
+    /// All signed int64 fields
+    SFixed64(i64),
 }
 
 /// Matches every key of `json` against `message`'s field descriptors and recurse.
@@ -158,7 +160,7 @@ impl Field {
             FieldType::UInt32 => try_new_uint32(&value, &name, number),
             FieldType::Enum => todo!(),
             FieldType::SFixed32 => try_new_sfixed32(&value, &name, number),
-            FieldType::SFixed64 => todo!(),
+            FieldType::SFixed64 => try_new_sfixed64(&value, &name, number),
             FieldType::SInt32 => try_new_sint32(&value, &name, number),
             FieldType::SInt64 => todo!(),
         }?;
@@ -171,6 +173,15 @@ fn try_new_sfixed32(value: &Value, name: &str, number: u32) -> Result<Field, Fie
     let v = parse_i32(value, name)?;
     Ok(Field {
         kind: FieldKind::SFixed32(v),
+        number,
+    })
+}
+
+/// Creates a new `Field` instance from a JSON `value` representing an `sfixed64`.
+fn try_new_sfixed64(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_i64(value, name)?;
+    Ok(Field {
+        kind: FieldKind::SFixed64(v),
         number,
     })
 }
@@ -287,7 +298,7 @@ fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldE
 impl Field {
     pub fn encode(&self, writer: &mut Writer) {
         match &self.kind {
-            FieldKind::String(value) => writer.write_string_field(self.number, &value),
+            FieldKind::String(value) => writer.write_string_field(self.number, value),
             FieldKind::Bool(v) => writer.write_bool_field(self.number, *v),
             FieldKind::Array(_) => todo!(),
             FieldKind::Message(fields) => {
@@ -309,19 +320,14 @@ impl Field {
             FieldKind::SInt32(v) => writer.write_sint32_field(self.number, *v),
             FieldKind::UInt32(v) => writer.write_uint32_field(self.number, *v),
             FieldKind::Fixed32(v) => writer.write_fixed32_field(self.number, *v),
+            FieldKind::SFixed64(v) => writer.write_sfixed64_field(self.number, *v),
         }
     }
 }
 
 /// Extracts an `i32` from a JSON [`Value`].
 fn parse_i32(value: &Value, name: &str) -> Result<i32, FieldError> {
-    let Value::Number(n) = value else {
-        return Err(FieldError::InvalidJsonInputType {
-            field: name.to_string(),
-            expected: "integer".to_string(),
-            actual: type_of_value(value).to_string(),
-        });
-    };
+    let n = try_integer_from(value, name)?;
     n.as_i64()
         .and_then(|v| i32::try_from(v).ok())
         .ok_or(FieldError::JsonNumberOutOfRange {
@@ -332,19 +338,22 @@ fn parse_i32(value: &Value, name: &str) -> Result<i32, FieldError> {
 
 /// Extracts a `u32` from a JSON [`Value`].
 fn parse_u32(value: &Value, name: &str) -> Result<u32, FieldError> {
-    let Value::Number(n) = value else {
-        return Err(FieldError::InvalidJsonInputType {
-            field: name.to_string(),
-            expected: "integer".to_string(),
-            actual: type_of_value(value).to_string(),
-        });
-    };
+    let n = try_integer_from(value, name)?;
     n.as_u64()
         .and_then(|v| u32::try_from(v).ok())
         .ok_or(FieldError::JsonNumberOutOfRange {
             field: name.to_string(),
             value: n.to_string(),
         })
+}
+
+/// Extracts an `i64` from a JSON [`Value`].
+fn parse_i64(value: &Value, name: &str) -> Result<i64, FieldError> {
+    let n = try_integer_from(value, name)?;
+    n.as_i64().ok_or(FieldError::JsonNumberOutOfRange {
+        field: name.to_string(),
+        value: n.to_string(),
+    })
 }
 
 fn type_of_value(value: &Value) -> &'static str {
@@ -356,4 +365,19 @@ fn type_of_value(value: &Value) -> &'static str {
         Value::Array(_) => "array",
         Value::Object(_) => "object",
     }
+}
+
+/// Returns a JSON `Value` number from a generic `value` for field named `name`.
+fn try_integer_from<'value>(
+    value: &'value Value,
+    name: &str,
+) -> Result<&'value Number, FieldError> {
+    let Value::Number(n) = value else {
+        return Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "integer".to_string(),
+            actual: type_of_value(value).to_string(),
+        });
+    };
+    Ok(n)
 }

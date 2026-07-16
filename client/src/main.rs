@@ -82,7 +82,7 @@ fn main() -> ExitCode {
 
     let client = Client::new();
     let url = Url::parse(&url).unwrap();
-    let _r = match client.run(descriptor_pool, url, body.as_bytes()) {
+    let r = match client.run(descriptor_pool, url, body.as_bytes()) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("error: {e}");
@@ -90,6 +90,12 @@ fn main() -> ExitCode {
         }
     };
 
+    println!("curl cmd:     {}", r.curl_cmd);
+    println!("grpc-status:  {}", r.grpc_status);
+    match r.grpc_message {
+        Some(m) => println!("grpc-message: {m}"),
+        None => println!("grpc-message:"),
+    }
     ExitCode::SUCCESS
 }
 

@@ -17,6 +17,7 @@
  */
 pub mod body;
 pub mod field;
+#[allow(clippy::module_inception)]
 pub mod request;
 
 pub use request::Request;
