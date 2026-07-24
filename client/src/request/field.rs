@@ -57,6 +57,8 @@ pub enum FieldKind {
     SFixed64(i64),
     Int64(i64),
     SInt64(i64),
+    /// All unsigned uint64 fields
+    UInt64(u64),
 }
 
 #[derive(Debug)]
@@ -127,7 +129,7 @@ impl Field {
             FieldType::Double => todo!(),
             FieldType::Float => todo!(),
             FieldType::Int64 => try_new_int64(&value, &name, number),
-            FieldType::UInt64 => todo!(),
+            FieldType::UInt64 => try_new_uint64(&value, &name, number),
             FieldType::Int32 => try_new_int32(&value, &name, number),
             FieldType::Fixed64 => todo!(),
             FieldType::Fixed32 => try_new_fixed32(&value, &name, number),
@@ -170,6 +172,7 @@ impl Field {
             FieldKind::SFixed64(v) => *v == 0,
             FieldKind::Int64(v) => *v == 0,
             FieldKind::SInt64(v) => *v == 0,
+            FieldKind::UInt64(v) => *v == 0,
         }
     }
 }
@@ -229,6 +232,15 @@ fn try_new_sint64(value: &Value, name: &str, number: u32) -> Result<Field, Field
     let v = parse_i64(value, name)?;
     Ok(Field {
         kind: FieldKind::SInt64(v),
+        number,
+    })
+}
+
+/// Creates a new `Field` instance from a JSON `value` representing a `uint64`.
+fn try_new_uint64(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_u64(value, name)?;
+    Ok(Field {
+        kind: FieldKind::UInt64(v),
         number,
     })
 }
@@ -370,6 +382,7 @@ impl Field {
             FieldKind::SFixed64(v) => writer.write_sfixed64_field(self.number, *v),
             FieldKind::Int64(v) => writer.write_int64_field(self.number, *v),
             FieldKind::SInt64(v) => writer.write_sint64_field(self.number, *v),
+            FieldKind::UInt64(v) => writer.write_uint64_field(self.number, *v),
         }
     }
 }
@@ -400,6 +413,15 @@ fn parse_u32(value: &Value, name: &str) -> Result<u32, FieldError> {
 fn parse_i64(value: &Value, name: &str) -> Result<i64, FieldError> {
     let n = try_integer_from(value, name)?;
     n.as_i64().ok_or(FieldError::JsonNumberOutOfRange {
+        field: name.to_string(),
+        value: n.to_string(),
+    })
+}
+
+/// Extracts a `u64` from a JSON [`Value`].
+fn parse_u64(value: &Value, name: &str) -> Result<u64, FieldError> {
+    let n = try_integer_from(value, name)?;
+    n.as_u64().ok_or(FieldError::JsonNumberOutOfRange {
         field: name.to_string(),
         value: n.to_string(),
     })

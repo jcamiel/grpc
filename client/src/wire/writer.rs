@@ -153,6 +153,14 @@ impl Writer {
         self.write_varint(zigzag);
     }
 
+    /// Writes a uint64 integer field.
+    pub fn write_uint64_field(&mut self, number: u32, value: u64) {
+        let tag = (number << 3) | WireType::VarInt as u32;
+        self.write_varint(tag as u64);
+        // Already u64, so hand it straight to the varint encoder.
+        self.write_varint(value);
+    }
+
     /// Writes the begin of a gRPC frame.
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
@@ -291,5 +299,13 @@ mod tests {
         let mut w = Writer::new();
         w.write_sint64_field(1, -1);
         assert_eq!(w.bytes(), [0x08, 0x01]);
+    }
+
+    #[test]
+    fn write_uint64() {
+        let mut w = Writer::new();
+        w.write_uint64_field(1, 300);
+        // tag 0x08, then varint 300 = 0xac 0x02 — same shape as uint32(300).
+        assert_eq!(w.bytes(), [0x08, 0xac, 0x02]);
     }
 }
