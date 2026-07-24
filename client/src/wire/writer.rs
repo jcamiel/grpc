@@ -168,6 +168,13 @@ impl Writer {
         self.write_bytes(&value.to_le_bytes());
     }
 
+    /// Writes a double floating-point field.
+    pub fn write_double_field(&mut self, number: u32, value: f64) {
+        let tag = (number << 3) | WireType::I64 as u32;
+        self.write_varint(tag as u64);
+        self.write_bytes(&value.to_le_bytes());
+    }
+
     /// Writes the begin of a gRPC frame.
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
@@ -324,6 +331,17 @@ mod tests {
         assert_eq!(
             w.bytes(),
             [0x09, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn write_double() {
+        let mut w = Writer::new();
+        w.write_double_field(1, 1.5);
+        // tag 0x09 (I64 wire type), then 8 bytes LE for 1.5 = 0x3FF8_0000_0000_0000
+        assert_eq!(
+            w.bytes(),
+            [0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x3f]
         );
     }
 }

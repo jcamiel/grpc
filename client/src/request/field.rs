@@ -60,6 +60,8 @@ pub enum FieldKind {
     /// All unsigned uint64 fields
     UInt64(u64),
     Fixed64(u64),
+    /// All floating-point fields
+    Double(f64),
 }
 
 #[derive(Debug)]
@@ -127,7 +129,7 @@ impl Field {
         }
 
         let field = match field_type {
-            FieldType::Double => todo!(),
+            FieldType::Double => try_new_double(&value, &name, number),
             FieldType::Float => todo!(),
             FieldType::Int64 => try_new_int64(&value, &name, number),
             FieldType::UInt64 => try_new_uint64(&value, &name, number),
@@ -175,6 +177,7 @@ impl Field {
             FieldKind::SInt64(v) => *v == 0,
             FieldKind::UInt64(v) => *v == 0,
             FieldKind::Fixed64(v) => *v == 0,
+            FieldKind::Double(v) => *v == 0.0,
         }
     }
 }
@@ -252,6 +255,15 @@ fn try_new_fixed64(value: &Value, name: &str, number: u32) -> Result<Field, Fiel
     let v = parse_u64(value, name)?;
     Ok(Field {
         kind: FieldKind::Fixed64(v),
+        number,
+    })
+}
+
+/// Creates a new `Field` instance from a JSON `value` representing a `double`.
+fn try_new_double(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_f64(value, name)?;
+    Ok(Field {
+        kind: FieldKind::Double(v),
         number,
     })
 }
@@ -395,6 +407,7 @@ impl Field {
             FieldKind::SInt64(v) => writer.write_sint64_field(self.number, *v),
             FieldKind::UInt64(v) => writer.write_uint64_field(self.number, *v),
             FieldKind::Fixed64(v) => writer.write_fixed64_field(self.number, *v),
+            FieldKind::Double(v) => writer.write_double_field(self.number, *v),
         }
     }
 }
@@ -439,6 +452,21 @@ fn parse_u64(value: &Value, name: &str) -> Result<u64, FieldError> {
     })
 }
 
+/// Extracts an `f64` from a JSON [`Value`].
+fn parse_f64(value: &Value, name: &str) -> Result<f64, FieldError> {
+    let Value::Number(n) = value else {
+        return Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "number".to_string(),
+            actual: type_of_value(value).to_string(),
+        });
+    };
+    n.as_f64().ok_or(FieldError::JsonNumberOutOfRange {
+        field: name.to_string(),
+        value: n.to_string(),
+    })
+}
+
 fn type_of_value(value: &Value) -> &'static str {
     match value {
         Value::Null => "null",
@@ -463,4 +491,163 @@ fn try_integer_from<'value>(
         });
     };
     Ok(n)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ---- parse_i32 ----
+
+    #[test]
+    fn parse_i32_accepts_positive() {
+        assert_eq!(parse_i32(&json!(42), "field").unwrap(), 42);
+    }
+
+    #[test]
+    fn parse_i32_accepts_bounds() {
+        assert_eq!(parse_i32(&json!(i32::MIN), "field").unwrap(), i32::MIN);
+        assert_eq!(parse_i32(&json!(i32::MAX), "field").unwrap(), i32::MAX);
+    }
+
+    #[test]
+    fn parse_i32_rejects_out_of_range() {
+        // One past i32::MAX (still fits in the i64 that serde_json uses internally).
+        let too_big = parse_i32(&json!(i32::MAX as i64 + 1), "field").unwrap_err();
+        assert!(matches!(too_big, FieldError::JsonNumberOutOfRange { .. }));
+        // One before i32::MIN.
+        let too_small = parse_i32(&json!(i32::MIN as i64 - 1), "field").unwrap_err();
+        assert!(matches!(too_small, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_i32_rejects_float() {
+        let err = parse_i32(&json!(1.5), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_i32_rejects_non_number() {
+        let err = parse_i32(&json!("42"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
+    }
+
+    // ---- parse_u32 ----
+
+    #[test]
+    fn parse_u32_accepts_integer() {
+        assert_eq!(parse_u32(&json!(42), "field").unwrap(), 42);
+    }
+
+    #[test]
+    fn parse_u32_accepts_u32_max() {
+        assert_eq!(parse_u32(&json!(u32::MAX), "field").unwrap(), u32::MAX);
+    }
+
+    #[test]
+    fn parse_u32_rejects_negative() {
+        let err = parse_u32(&json!(-1), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_u32_rejects_too_big() {
+        // One past u32::MAX (fits in u64 for serde_json).
+        let err = parse_u32(&json!(u32::MAX as u64 + 1), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_u32_rejects_non_number() {
+        let err = parse_u32(&json!("42"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
+    }
+
+    // ---- parse_i64 ----
+
+    #[test]
+    fn parse_i64_accepts_integer() {
+        assert_eq!(parse_i64(&json!(42), "field").unwrap(), 42);
+    }
+
+    #[test]
+    fn parse_i64_accepts_negative() {
+        assert_eq!(parse_i64(&json!(-1), "field").unwrap(), -1);
+    }
+
+    #[test]
+    fn parse_i64_accepts_bounds() {
+        assert_eq!(parse_i64(&json!(i64::MIN), "field").unwrap(), i64::MIN);
+        assert_eq!(parse_i64(&json!(i64::MAX), "field").unwrap(), i64::MAX);
+    }
+
+    #[test]
+    fn parse_i64_rejects_float() {
+        let err = parse_i64(&json!(1.5), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_i64_rejects_non_number() {
+        let err = parse_i64(&json!("42"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
+    }
+
+    // ---- parse_u64 ----
+
+    #[test]
+    fn parse_u64_accepts_integer() {
+        assert_eq!(parse_u64(&json!(42), "field").unwrap(), 42);
+    }
+
+    #[test]
+    fn parse_u64_accepts_u64_max() {
+        assert_eq!(parse_u64(&json!(u64::MAX), "field").unwrap(), u64::MAX);
+    }
+
+    #[test]
+    fn parse_u64_rejects_negative() {
+        // as_u64() returns None for negative values.
+        let err = parse_u64(&json!(-1), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_u64_rejects_float() {
+        // as_u64() returns None for non-integer JSON numbers.
+        let err = parse_u64(&json!(1.5), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_u64_rejects_non_number() {
+        let err = parse_u64(&json!("42"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
+    }
+
+    // ---- parse_f64 ----
+
+    #[test]
+    fn parse_f64_accepts_float() {
+        assert_eq!(parse_f64(&json!(1.5), "field").unwrap(), 1.5);
+    }
+
+    #[test]
+    fn parse_f64_accepts_integer() {
+        // JSON integers coerce to f64.
+        assert_eq!(parse_f64(&json!(42), "field").unwrap(), 42.0);
+    }
+
+    #[test]
+    fn parse_f64_accepts_negative() {
+        assert_eq!(parse_f64(&json!(-1.5), "field").unwrap(), -1.5);
+    }
+
+    #[test]
+    fn parse_f64_rejects_non_number() {
+        // Uses a different shape check than the integer parsers — "expected: number".
+        let err = parse_f64(&json!("1.5"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
+    }
 }
