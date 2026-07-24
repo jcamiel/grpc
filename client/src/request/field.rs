@@ -62,6 +62,7 @@ pub enum FieldKind {
     Fixed64(u64),
     /// All floating-point fields
     Double(f64),
+    Float(f32),
 }
 
 #[derive(Debug)]
@@ -130,7 +131,7 @@ impl Field {
 
         let field = match field_type {
             FieldType::Double => try_new_double(&value, &name, number),
-            FieldType::Float => todo!(),
+            FieldType::Float => try_new_float(&value, &name, number),
             FieldType::Int64 => try_new_int64(&value, &name, number),
             FieldType::UInt64 => try_new_uint64(&value, &name, number),
             FieldType::Int32 => try_new_int32(&value, &name, number),
@@ -178,6 +179,7 @@ impl Field {
             FieldKind::UInt64(v) => *v == 0,
             FieldKind::Fixed64(v) => *v == 0,
             FieldKind::Double(v) => *v == 0.0,
+            FieldKind::Float(v) => *v == 0.0,
         }
     }
 }
@@ -264,6 +266,16 @@ fn try_new_double(value: &Value, name: &str, number: u32) -> Result<Field, Field
     let v = parse_f64(value, name)?;
     Ok(Field {
         kind: FieldKind::Double(v),
+        number,
+    })
+}
+
+/// Creates a new `Field` instance from a JSON `value` representing a `float`.
+fn try_new_float(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    // TODO: we don't support for the moment JSON string like "Infinity", "-Infinity", "NaN"
+    let v = parse_f32(value, name)?;
+    Ok(Field {
+        kind: FieldKind::Float(v),
         number,
     })
 }
@@ -408,6 +420,7 @@ impl Field {
             FieldKind::UInt64(v) => writer.write_uint64_field(self.number, *v),
             FieldKind::Fixed64(v) => writer.write_fixed64_field(self.number, *v),
             FieldKind::Double(v) => writer.write_double_field(self.number, *v),
+            FieldKind::Float(v) => writer.write_float_field(self.number, *v),
         }
     }
 }
@@ -465,6 +478,13 @@ fn parse_f64(value: &Value, name: &str) -> Result<f64, FieldError> {
         field: name.to_string(),
         value: n.to_string(),
     })
+}
+
+/// Extracts an `f32` from a JSON [`Value`].
+fn parse_f32(value: &Value, name: &str) -> Result<f32, FieldError> {
+    // Delegates to [`parse_f64`] for the shape check, then narrows. Values outside the `f32` range
+    // silently coerce to `±f32::INFINITY` — this matches Google's protoc canonical behavior.
+    parse_f64(value, name).map(|f| f as f32)
 }
 
 fn type_of_value(value: &Value) -> &'static str {
@@ -648,6 +668,36 @@ mod tests {
     fn parse_f64_rejects_non_number() {
         // Uses a different shape check than the integer parsers — "expected: number".
         let err = parse_f64(&json!("1.5"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
+    }
+
+    // ---- parse_f32 ----
+
+    #[test]
+    fn parse_f32_accepts_float() {
+        assert_eq!(parse_f32(&json!(1.5), "field").unwrap(), 1.5);
+    }
+
+    #[test]
+    fn parse_f32_accepts_integer() {
+        assert_eq!(parse_f32(&json!(42), "field").unwrap(), 42.0);
+    }
+
+    #[test]
+    fn parse_f32_accepts_negative() {
+        assert_eq!(parse_f32(&json!(-1.5), "field").unwrap(), -1.5);
+    }
+
+    #[test]
+    fn parse_f32_narrows_silently_on_overflow() {
+        // f64::MAX doesn't fit in f32 — coerces to +infinity rather than erroring.
+        let v = parse_f32(&json!(f64::MAX), "field").unwrap();
+        assert!(v.is_infinite() && v.is_sign_positive());
+    }
+
+    #[test]
+    fn parse_f32_rejects_non_number() {
+        let err = parse_f32(&json!("1.5"), "field").unwrap_err();
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 }
