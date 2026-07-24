@@ -55,6 +55,7 @@ pub enum FieldKind {
     Fixed32(u32),
     /// All signed int64 fields
     SFixed64(i64),
+    Int64(i64),
 }
 
 #[derive(Debug)]
@@ -124,7 +125,7 @@ impl Field {
         let field = match field_type {
             FieldType::Double => todo!(),
             FieldType::Float => todo!(),
-            FieldType::Int64 => todo!(),
+            FieldType::Int64 => try_new_int64(&value, &name, number),
             FieldType::UInt64 => todo!(),
             FieldType::Int32 => try_new_int32(&value, &name, number),
             FieldType::Fixed64 => todo!(),
@@ -166,6 +167,7 @@ impl Field {
             FieldKind::UInt32(v) => *v == 0,
             FieldKind::Fixed32(v) => *v == 0,
             FieldKind::SFixed64(v) => *v == 0,
+            FieldKind::Int64(v) => *v == 0,
         }
     }
 }
@@ -207,6 +209,15 @@ fn try_new_sfixed64(value: &Value, name: &str, number: u32) -> Result<Field, Fie
     let v = parse_i64(value, name)?;
     Ok(Field {
         kind: FieldKind::SFixed64(v),
+        number,
+    })
+}
+
+/// Creates a new `Field` instance from a JSON `value` representing an `int64`.
+fn try_new_int64(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_i64(value, name)?;
+    Ok(Field {
+        kind: FieldKind::Int64(v),
         number,
     })
 }
@@ -346,6 +357,7 @@ impl Field {
             FieldKind::UInt32(v) => writer.write_uint32_field(self.number, *v),
             FieldKind::Fixed32(v) => writer.write_fixed32_field(self.number, *v),
             FieldKind::SFixed64(v) => writer.write_sfixed64_field(self.number, *v),
+            FieldKind::Int64(v) => writer.write_int64_field(self.number, *v),
         }
     }
 }

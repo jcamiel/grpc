@@ -133,6 +133,15 @@ impl Writer {
         self.write_bytes(&value.to_le_bytes());
     }
 
+    /// Writes a int64 integer field.
+    pub fn write_int64_field(&mut self, number: u32, value: i64) {
+        let tag = (number << 3) | WireType::VarInt as u32;
+        self.write_varint(tag as u64);
+        // `as u64` is a bit-reinterpret; no sign extension needed since i64 is already 64 bits.
+        // Negative values still take 10 bytes (full two's-complement u64), same as `int32`.
+        self.write_varint(value as u64);
+    }
+
     /// Writes the begin of a gRPC frame.
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
@@ -248,6 +257,20 @@ mod tests {
         assert_eq!(
             w.bytes(),
             [0x09, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
+        );
+    }
+
+    #[test]
+    fn write_int64_negative_is_ten_bytes() {
+        let mut w = Writer::new();
+        w.write_int64_field(1, -1);
+        // Same shape as write_int32(-1): u64 view of -1i64 is all bits set,
+        // which encodes as a 10-byte varint.
+        assert_eq!(
+            w.bytes(),
+            [
+                0x08, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01
+            ]
         );
     }
 }
