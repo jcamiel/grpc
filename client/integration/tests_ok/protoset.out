@@ -1,0 +1,2002 @@
+DescriptorPool {
+    fds: FileDescriptorSet {
+        files: [
+            FileDescriptorProto {
+                name: Some(
+                    "google/protobuf/timestamp.proto",
+                ),
+                package: Some(
+                    "google.protobuf",
+                ),
+                message_types: [
+                    DescriptorProto {
+                        name: Some(
+                            "Timestamp",
+                        ),
+                        fqn: "google.protobuf.Timestamp",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "seconds",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int64,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "nanos",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                        ],
+                        nested_types: [],
+                        enum_types: [],
+                        oneof_decls: [],
+                        options: None,
+                    },
+                ],
+                enum_types: [],
+                services: [],
+            },
+            FileDescriptorProto {
+                name: Some(
+                    "google/protobuf/duration.proto",
+                ),
+                package: Some(
+                    "google.protobuf",
+                ),
+                message_types: [
+                    DescriptorProto {
+                        name: Some(
+                            "Duration",
+                        ),
+                        fqn: "google.protobuf.Duration",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "seconds",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int64,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "nanos",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                        ],
+                        nested_types: [],
+                        enum_types: [],
+                        oneof_decls: [],
+                        options: None,
+                    },
+                ],
+                enum_types: [],
+                services: [],
+            },
+            FileDescriptorProto {
+                name: Some(
+                    "google/protobuf/any.proto",
+                ),
+                package: Some(
+                    "google.protobuf",
+                ),
+                message_types: [
+                    DescriptorProto {
+                        name: Some(
+                            "Any",
+                        ),
+                        fqn: "google.protobuf.Any",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "type_url",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    String,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "value",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Bytes,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                        ],
+                        nested_types: [],
+                        enum_types: [],
+                        oneof_decls: [],
+                        options: None,
+                    },
+                ],
+                enum_types: [],
+                services: [],
+            },
+            FileDescriptorProto {
+                name: Some(
+                    "echo.proto",
+                ),
+                package: Some(
+                    "echo",
+                ),
+                message_types: [
+                    DescriptorProto {
+                        name: Some(
+                            "EchoRequest",
+                        ),
+                        fqn: "echo.EchoRequest",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "payload",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Message,
+                                ),
+                                type_name: Some(
+                                    ".echo.Payload",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                        ],
+                        nested_types: [],
+                        enum_types: [],
+                        oneof_decls: [],
+                        options: None,
+                    },
+                    DescriptorProto {
+                        name: Some(
+                            "EchoReply",
+                        ),
+                        fqn: "echo.EchoReply",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "payload",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Message,
+                                ),
+                                type_name: Some(
+                                    ".echo.Payload",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "received_at",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Message,
+                                ),
+                                type_name: Some(
+                                    ".google.protobuf.Timestamp",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                        ],
+                        nested_types: [],
+                        enum_types: [],
+                        oneof_decls: [],
+                        options: None,
+                    },
+                    DescriptorProto {
+                        name: Some(
+                            "Payload",
+                        ),
+                        fqn: "echo.Payload",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "i32",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "i64",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int64,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "u32",
+                                ),
+                                number: Some(
+                                    3,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    UInt32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "u64",
+                                ),
+                                number: Some(
+                                    4,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    UInt64,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "s32",
+                                ),
+                                number: Some(
+                                    5,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    SInt32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "s64",
+                                ),
+                                number: Some(
+                                    6,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    SInt64,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "flag",
+                                ),
+                                number: Some(
+                                    7,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Bool,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "color",
+                                ),
+                                number: Some(
+                                    8,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Enum,
+                                ),
+                                type_name: Some(
+                                    ".echo.Color",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "f64",
+                                ),
+                                number: Some(
+                                    9,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Fixed64,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "sf64",
+                                ),
+                                number: Some(
+                                    10,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    SFixed64,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "d",
+                                ),
+                                number: Some(
+                                    11,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Double,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "text",
+                                ),
+                                number: Some(
+                                    12,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    String,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "blob",
+                                ),
+                                number: Some(
+                                    13,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Bytes,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "nested",
+                                ),
+                                number: Some(
+                                    14,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Message,
+                                ),
+                                type_name: Some(
+                                    ".echo.Nested",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "f32",
+                                ),
+                                number: Some(
+                                    15,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Fixed32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "sf32",
+                                ),
+                                number: Some(
+                                    16,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    SFixed32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "fl",
+                                ),
+                                number: Some(
+                                    17,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Float,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "packed_ints",
+                                ),
+                                number: Some(
+                                    18,
+                                ),
+                                label: Some(
+                                    Repeated,
+                                ),
+                                type: Some(
+                                    Int32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "strings",
+                                ),
+                                number: Some(
+                                    19,
+                                ),
+                                label: Some(
+                                    Repeated,
+                                ),
+                                type: Some(
+                                    String,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "choice_text",
+                                ),
+                                number: Some(
+                                    20,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    String,
+                                ),
+                                type_name: None,
+                                oneof_index: Some(
+                                    0,
+                                ),
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "choice_int",
+                                ),
+                                number: Some(
+                                    21,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int32,
+                                ),
+                                type_name: None,
+                                oneof_index: Some(
+                                    0,
+                                ),
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "tags",
+                                ),
+                                number: Some(
+                                    22,
+                                ),
+                                label: Some(
+                                    Repeated,
+                                ),
+                                type: Some(
+                                    Message,
+                                ),
+                                type_name: Some(
+                                    ".echo.Payload.TagsEntry",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "duration",
+                                ),
+                                number: Some(
+                                    23,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Message,
+                                ),
+                                type_name: Some(
+                                    ".google.protobuf.Duration",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "any_field",
+                                ),
+                                number: Some(
+                                    24,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Message,
+                                ),
+                                type_name: Some(
+                                    ".google.protobuf.Any",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "priority",
+                                ),
+                                number: Some(
+                                    25,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Enum,
+                                ),
+                                type_name: Some(
+                                    ".echo.Payload.Priority",
+                                ),
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "nickname",
+                                ),
+                                number: Some(
+                                    26,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    String,
+                                ),
+                                type_name: None,
+                                oneof_index: Some(
+                                    1,
+                                ),
+                                proto3_optional: Some(
+                                    true,
+                                ),
+                            },
+                        ],
+                        nested_types: [
+                            DescriptorProto {
+                                name: Some(
+                                    "TagsEntry",
+                                ),
+                                fqn: "echo.Payload.TagsEntry",
+                                fields: [
+                                    FieldDescriptorProto {
+                                        name: Some(
+                                            "key",
+                                        ),
+                                        number: Some(
+                                            1,
+                                        ),
+                                        label: Some(
+                                            Optional,
+                                        ),
+                                        type: Some(
+                                            String,
+                                        ),
+                                        type_name: None,
+                                        oneof_index: None,
+                                        proto3_optional: None,
+                                    },
+                                    FieldDescriptorProto {
+                                        name: Some(
+                                            "value",
+                                        ),
+                                        number: Some(
+                                            2,
+                                        ),
+                                        label: Some(
+                                            Optional,
+                                        ),
+                                        type: Some(
+                                            Int32,
+                                        ),
+                                        type_name: None,
+                                        oneof_index: None,
+                                        proto3_optional: None,
+                                    },
+                                ],
+                                nested_types: [],
+                                enum_types: [],
+                                oneof_decls: [],
+                                options: Some(
+                                    MessageOptions {
+                                        map_entry: Some(
+                                            true,
+                                        ),
+                                    },
+                                ),
+                            },
+                        ],
+                        enum_types: [
+                            EnumDescriptorProto {
+                                name: Some(
+                                    "Priority",
+                                ),
+                                fqn: "echo.Payload.Priority",
+                                values: [
+                                    EnumValueDescriptorProto {
+                                        name: Some(
+                                            "PRIORITY_UNSPECIFIED",
+                                        ),
+                                        number: Some(
+                                            0,
+                                        ),
+                                    },
+                                    EnumValueDescriptorProto {
+                                        name: Some(
+                                            "LOW",
+                                        ),
+                                        number: Some(
+                                            1,
+                                        ),
+                                    },
+                                    EnumValueDescriptorProto {
+                                        name: Some(
+                                            "MEDIUM",
+                                        ),
+                                        number: Some(
+                                            2,
+                                        ),
+                                    },
+                                    EnumValueDescriptorProto {
+                                        name: Some(
+                                            "HIGH",
+                                        ),
+                                        number: Some(
+                                            3,
+                                        ),
+                                    },
+                                ],
+                            },
+                        ],
+                        oneof_decls: [
+                            OneOfDescriptorProto {
+                                name: Some(
+                                    "choice",
+                                ),
+                            },
+                            OneOfDescriptorProto {
+                                name: Some(
+                                    "_nickname",
+                                ),
+                            },
+                        ],
+                        options: None,
+                    },
+                    DescriptorProto {
+                        name: Some(
+                            "Nested",
+                        ),
+                        fqn: "echo.Nested",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "label",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    String,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "value",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                        ],
+                        nested_types: [],
+                        enum_types: [],
+                        oneof_decls: [],
+                        options: None,
+                    },
+                ],
+                enum_types: [
+                    EnumDescriptorProto {
+                        name: Some(
+                            "Color",
+                        ),
+                        fqn: "echo.Color",
+                        values: [
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "COLOR_UNSPECIFIED",
+                                ),
+                                number: Some(
+                                    0,
+                                ),
+                            },
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "RED",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                            },
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "GREEN",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                            },
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "BLUE",
+                                ),
+                                number: Some(
+                                    3,
+                                ),
+                            },
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "ULTRAVIOLET",
+                                ),
+                                number: Some(
+                                    -1,
+                                ),
+                            },
+                        ],
+                    },
+                ],
+                services: [
+                    ServiceDescriptorProto {
+                        name: Some(
+                            "Echo",
+                        ),
+                        fqn: "echo.Echo",
+                        methods: [
+                            MethodDescriptorProto {
+                                name: Some(
+                                    "Echo",
+                                ),
+                                fqn: "echo.Echo.Echo",
+                                input_type: Some(
+                                    ".echo.EchoRequest",
+                                ),
+                                output_type: Some(
+                                    ".echo.EchoReply",
+                                ),
+                                client_streaming: None,
+                                server_streaming: None,
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+}
+SymbolTable {
+    by_fqn: {
+        "echo.Color": Enum(
+            EnumDescriptorProto {
+                name: Some(
+                    "Color",
+                ),
+                fqn: "echo.Color",
+                values: [
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "COLOR_UNSPECIFIED",
+                        ),
+                        number: Some(
+                            0,
+                        ),
+                    },
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "RED",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                    },
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "GREEN",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                    },
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "BLUE",
+                        ),
+                        number: Some(
+                            3,
+                        ),
+                    },
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "ULTRAVIOLET",
+                        ),
+                        number: Some(
+                            -1,
+                        ),
+                    },
+                ],
+            },
+        ),
+        "echo.Payload": Message(
+            DescriptorProto {
+                name: Some(
+                    "Payload",
+                ),
+                fqn: "echo.Payload",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "i32",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "i64",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int64,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "u32",
+                        ),
+                        number: Some(
+                            3,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            UInt32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "u64",
+                        ),
+                        number: Some(
+                            4,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            UInt64,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "s32",
+                        ),
+                        number: Some(
+                            5,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            SInt32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "s64",
+                        ),
+                        number: Some(
+                            6,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            SInt64,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "flag",
+                        ),
+                        number: Some(
+                            7,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Bool,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "color",
+                        ),
+                        number: Some(
+                            8,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Enum,
+                        ),
+                        type_name: Some(
+                            ".echo.Color",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "f64",
+                        ),
+                        number: Some(
+                            9,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Fixed64,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "sf64",
+                        ),
+                        number: Some(
+                            10,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            SFixed64,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "d",
+                        ),
+                        number: Some(
+                            11,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Double,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "text",
+                        ),
+                        number: Some(
+                            12,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            String,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "blob",
+                        ),
+                        number: Some(
+                            13,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Bytes,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "nested",
+                        ),
+                        number: Some(
+                            14,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Message,
+                        ),
+                        type_name: Some(
+                            ".echo.Nested",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "f32",
+                        ),
+                        number: Some(
+                            15,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Fixed32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "sf32",
+                        ),
+                        number: Some(
+                            16,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            SFixed32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "fl",
+                        ),
+                        number: Some(
+                            17,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Float,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "packed_ints",
+                        ),
+                        number: Some(
+                            18,
+                        ),
+                        label: Some(
+                            Repeated,
+                        ),
+                        type: Some(
+                            Int32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "strings",
+                        ),
+                        number: Some(
+                            19,
+                        ),
+                        label: Some(
+                            Repeated,
+                        ),
+                        type: Some(
+                            String,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "choice_text",
+                        ),
+                        number: Some(
+                            20,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            String,
+                        ),
+                        type_name: None,
+                        oneof_index: Some(
+                            0,
+                        ),
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "choice_int",
+                        ),
+                        number: Some(
+                            21,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int32,
+                        ),
+                        type_name: None,
+                        oneof_index: Some(
+                            0,
+                        ),
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "tags",
+                        ),
+                        number: Some(
+                            22,
+                        ),
+                        label: Some(
+                            Repeated,
+                        ),
+                        type: Some(
+                            Message,
+                        ),
+                        type_name: Some(
+                            ".echo.Payload.TagsEntry",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "duration",
+                        ),
+                        number: Some(
+                            23,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Message,
+                        ),
+                        type_name: Some(
+                            ".google.protobuf.Duration",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "any_field",
+                        ),
+                        number: Some(
+                            24,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Message,
+                        ),
+                        type_name: Some(
+                            ".google.protobuf.Any",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "priority",
+                        ),
+                        number: Some(
+                            25,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Enum,
+                        ),
+                        type_name: Some(
+                            ".echo.Payload.Priority",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "nickname",
+                        ),
+                        number: Some(
+                            26,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            String,
+                        ),
+                        type_name: None,
+                        oneof_index: Some(
+                            1,
+                        ),
+                        proto3_optional: Some(
+                            true,
+                        ),
+                    },
+                ],
+                nested_types: [
+                    DescriptorProto {
+                        name: Some(
+                            "TagsEntry",
+                        ),
+                        fqn: "echo.Payload.TagsEntry",
+                        fields: [
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "key",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    String,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                            FieldDescriptorProto {
+                                name: Some(
+                                    "value",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                                label: Some(
+                                    Optional,
+                                ),
+                                type: Some(
+                                    Int32,
+                                ),
+                                type_name: None,
+                                oneof_index: None,
+                                proto3_optional: None,
+                            },
+                        ],
+                        nested_types: [],
+                        enum_types: [],
+                        oneof_decls: [],
+                        options: Some(
+                            MessageOptions {
+                                map_entry: Some(
+                                    true,
+                                ),
+                            },
+                        ),
+                    },
+                ],
+                enum_types: [
+                    EnumDescriptorProto {
+                        name: Some(
+                            "Priority",
+                        ),
+                        fqn: "echo.Payload.Priority",
+                        values: [
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "PRIORITY_UNSPECIFIED",
+                                ),
+                                number: Some(
+                                    0,
+                                ),
+                            },
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "LOW",
+                                ),
+                                number: Some(
+                                    1,
+                                ),
+                            },
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "MEDIUM",
+                                ),
+                                number: Some(
+                                    2,
+                                ),
+                            },
+                            EnumValueDescriptorProto {
+                                name: Some(
+                                    "HIGH",
+                                ),
+                                number: Some(
+                                    3,
+                                ),
+                            },
+                        ],
+                    },
+                ],
+                oneof_decls: [
+                    OneOfDescriptorProto {
+                        name: Some(
+                            "choice",
+                        ),
+                    },
+                    OneOfDescriptorProto {
+                        name: Some(
+                            "_nickname",
+                        ),
+                    },
+                ],
+                options: None,
+            },
+        ),
+        "echo.Payload.Priority": Enum(
+            EnumDescriptorProto {
+                name: Some(
+                    "Priority",
+                ),
+                fqn: "echo.Payload.Priority",
+                values: [
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "PRIORITY_UNSPECIFIED",
+                        ),
+                        number: Some(
+                            0,
+                        ),
+                    },
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "LOW",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                    },
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "MEDIUM",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                    },
+                    EnumValueDescriptorProto {
+                        name: Some(
+                            "HIGH",
+                        ),
+                        number: Some(
+                            3,
+                        ),
+                    },
+                ],
+            },
+        ),
+        "echo.EchoRequest": Message(
+            DescriptorProto {
+                name: Some(
+                    "EchoRequest",
+                ),
+                fqn: "echo.EchoRequest",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "payload",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Message,
+                        ),
+                        type_name: Some(
+                            ".echo.Payload",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                ],
+                nested_types: [],
+                enum_types: [],
+                oneof_decls: [],
+                options: None,
+            },
+        ),
+        "echo.EchoReply": Message(
+            DescriptorProto {
+                name: Some(
+                    "EchoReply",
+                ),
+                fqn: "echo.EchoReply",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "payload",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Message,
+                        ),
+                        type_name: Some(
+                            ".echo.Payload",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "received_at",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Message,
+                        ),
+                        type_name: Some(
+                            ".google.protobuf.Timestamp",
+                        ),
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                ],
+                nested_types: [],
+                enum_types: [],
+                oneof_decls: [],
+                options: None,
+            },
+        ),
+        "google.protobuf.Duration": Message(
+            DescriptorProto {
+                name: Some(
+                    "Duration",
+                ),
+                fqn: "google.protobuf.Duration",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "seconds",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int64,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "nanos",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                ],
+                nested_types: [],
+                enum_types: [],
+                oneof_decls: [],
+                options: None,
+            },
+        ),
+        "echo.Payload.TagsEntry": Message(
+            DescriptorProto {
+                name: Some(
+                    "TagsEntry",
+                ),
+                fqn: "echo.Payload.TagsEntry",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "key",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            String,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "value",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                ],
+                nested_types: [],
+                enum_types: [],
+                oneof_decls: [],
+                options: Some(
+                    MessageOptions {
+                        map_entry: Some(
+                            true,
+                        ),
+                    },
+                ),
+            },
+        ),
+        "google.protobuf.Any": Message(
+            DescriptorProto {
+                name: Some(
+                    "Any",
+                ),
+                fqn: "google.protobuf.Any",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "type_url",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            String,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "value",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Bytes,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                ],
+                nested_types: [],
+                enum_types: [],
+                oneof_decls: [],
+                options: None,
+            },
+        ),
+        "echo.Nested": Message(
+            DescriptorProto {
+                name: Some(
+                    "Nested",
+                ),
+                fqn: "echo.Nested",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "label",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            String,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "value",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                ],
+                nested_types: [],
+                enum_types: [],
+                oneof_decls: [],
+                options: None,
+            },
+        ),
+        "echo.Echo": Service(
+            ServiceDescriptorProto {
+                name: Some(
+                    "Echo",
+                ),
+                fqn: "echo.Echo",
+                methods: [
+                    MethodDescriptorProto {
+                        name: Some(
+                            "Echo",
+                        ),
+                        fqn: "echo.Echo.Echo",
+                        input_type: Some(
+                            ".echo.EchoRequest",
+                        ),
+                        output_type: Some(
+                            ".echo.EchoReply",
+                        ),
+                        client_streaming: None,
+                        server_streaming: None,
+                    },
+                ],
+            },
+        ),
+        "google.protobuf.Timestamp": Message(
+            DescriptorProto {
+                name: Some(
+                    "Timestamp",
+                ),
+                fqn: "google.protobuf.Timestamp",
+                fields: [
+                    FieldDescriptorProto {
+                        name: Some(
+                            "seconds",
+                        ),
+                        number: Some(
+                            1,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int64,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                    FieldDescriptorProto {
+                        name: Some(
+                            "nanos",
+                        ),
+                        number: Some(
+                            2,
+                        ),
+                        label: Some(
+                            Optional,
+                        ),
+                        type: Some(
+                            Int32,
+                        ),
+                        type_name: None,
+                        oneof_index: None,
+                        proto3_optional: None,
+                    },
+                ],
+                nested_types: [],
+                enum_types: [],
+                oneof_decls: [],
+                options: None,
+            },
+        ),
+    },
+}

@@ -572,7 +572,7 @@ impl OneOfDescriptorProto {
 #[derive(Clone, Debug, Default)]
 pub struct EnumValueDescriptorProto {
     pub name: Option<String>,
-    pub number: Option<u32>,
+    pub number: Option<i32>,
 }
 
 impl EnumValueDescriptorProto {
@@ -590,7 +590,7 @@ impl EnumValueDescriptorProto {
                     name = Some(str);
                 }
                 2 => {
-                    let value = uint32("number", entity, &mut reader, wire_type)?;
+                    let value = int32("number", entity, &mut reader, wire_type)?;
                     number = Some(value);
                 }
                 _ => reader.skip(wire_type)?,
@@ -787,6 +787,27 @@ fn uint32(
         });
     }
     let value = reader.read_uint32()?;
+    Ok(value)
+}
+
+fn int32(
+    field: &'static str,
+    entity: &'static str,
+    reader: &mut Reader,
+    wt: WireType,
+) -> Result<i32, ParserError> {
+    if wt != WireType::VarInt {
+        return Err(ParserError::WireTypeMismatch {
+            expected: WireType::VarInt,
+            actual: wt,
+            field,
+            entity,
+        });
+    }
+    // int32 on the wire is a varint. Negative values are stored as if sign-extended to u64 (10 bytes).
+    // Truncating u64 => u32 => i32 via `as` casts recovers the original i32 bit pattern for both
+    // positive and negative inputs.
+    let value = reader.read_varint()? as u32 as i32;
     Ok(value)
 }
 
