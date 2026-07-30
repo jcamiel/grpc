@@ -1,0 +1,2 @@
+- [ ] accept "Nan", "+Infinity", "-Infinity" as valid value for integer/float ?
+- [ ] when decoding 64-bit integers, deserialize them as string

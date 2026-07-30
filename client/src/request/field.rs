@@ -79,6 +79,8 @@ pub enum FieldError {
     UnknownJsonField { field: String, type_name: String },
     /// The JSON is a number but its value is out of the target field's numeric range.
     JsonNumberOutOfRange { field: String, value: String },
+    /// A string is used for representing integer, but this string is not parseable as an integer
+    InvalidStringAsInteger { field: String, value: String },
 }
 
 impl fmt::Display for FieldError {
@@ -102,7 +104,11 @@ impl fmt::Display for FieldError {
             ),
             FieldError::JsonNumberOutOfRange { field, value } => write!(
                 f,
-                "bad input for field '{field}', JSON number '{value}' is out of range"
+                "bad input for field '{field}' JSON number '{value}' is out of range"
+            ),
+            FieldError::InvalidStringAsInteger { field, value } => write!(
+                f,
+                "bad input for field '{field}' parsing '{value}' as integer failed"
             ),
         }
     }
@@ -449,20 +455,48 @@ fn parse_u32(value: &Value, name: &str) -> Result<u32, FieldError> {
 
 /// Extracts an `i64` from a JSON [`Value`].
 fn parse_i64(value: &Value, name: &str) -> Result<i64, FieldError> {
-    let n = try_integer_from(value, name)?;
-    n.as_i64().ok_or(FieldError::JsonNumberOutOfRange {
-        field: name.to_string(),
-        value: n.to_string(),
-    })
+    // We accept both JSON numbers and JSON strings, proto3 JSON canonicalizes 64-bit integers as
+    // strings to avoid the f64 precision loss that JSON parsers apply to numbers above 2^53.
+    match value {
+        Value::Number(n) => n.as_i64().ok_or(FieldError::JsonNumberOutOfRange {
+            field: name.to_string(),
+            value: n.to_string(),
+        }),
+        Value::String(s) => s
+            .parse::<i64>()
+            .map_err(|_| FieldError::InvalidStringAsInteger {
+                field: name.to_string(),
+                value: s.clone(),
+            }),
+        _ => Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "integer or string".to_string(),
+            actual: type_of_value(value).to_string(),
+        }),
+    }
 }
 
 /// Extracts a `u64` from a JSON [`Value`].
 fn parse_u64(value: &Value, name: &str) -> Result<u64, FieldError> {
-    let n = try_integer_from(value, name)?;
-    n.as_u64().ok_or(FieldError::JsonNumberOutOfRange {
-        field: name.to_string(),
-        value: n.to_string(),
-    })
+    // We accept both JSON numbers and JSON strings, proto3 JSON canonicalizes 64-bit integers as
+    // strings to avoid the f64 precision loss that JSON parsers apply to numbers above 2^53.
+    match value {
+        Value::Number(n) => n.as_u64().ok_or(FieldError::JsonNumberOutOfRange {
+            field: name.to_string(),
+            value: n.to_string(),
+        }),
+        Value::String(s) => s
+            .parse::<u64>()
+            .map_err(|_| FieldError::InvalidStringAsInteger {
+                field: name.to_string(),
+                value: s.clone(),
+            }),
+        _ => Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "integer or string".to_string(),
+            actual: type_of_value(value).to_string(),
+        }),
+    }
 }
 
 /// Extracts an `f64` from a JSON [`Value`].
@@ -609,8 +643,21 @@ mod tests {
     }
 
     #[test]
-    fn parse_i64_rejects_non_number() {
-        let err = parse_i64(&json!("42"), "field").unwrap_err();
+    fn parse_i64_accepts_string() {
+        // Proto3 JSON canonical form for 64-bit integers.
+        assert_eq!(parse_i64(&json!("-264836"), "field").unwrap(), -264836);
+    }
+
+    #[test]
+    fn parse_i64_rejects_unparseable_string() {
+        let err = parse_i64(&json!("not-a-number"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_i64_rejects_bool() {
+        // Neither a number nor a string — the "wrong type" case.
+        let err = parse_i64(&json!(true), "field").unwrap_err();
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 
@@ -641,8 +688,21 @@ mod tests {
     }
 
     #[test]
-    fn parse_u64_rejects_non_number() {
-        let err = parse_u64(&json!("42"), "field").unwrap_err();
+    fn parse_u64_accepts_string() {
+        // Proto3 JSON canonical form for 64-bit integers.
+        assert_eq!(parse_u64(&json!("617"), "field").unwrap(), 617);
+    }
+
+    #[test]
+    fn parse_u64_rejects_negative_string() {
+        // "-1".parse::<u64>() fails, routes to JsonNumberOutOfRange.
+        let err = parse_u64(&json!("-1"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+    }
+
+    #[test]
+    fn parse_u64_rejects_bool() {
+        let err = parse_u64(&json!(true), "field").unwrap_err();
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 
