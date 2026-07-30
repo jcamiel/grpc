@@ -1,0 +1,1 @@
+error: Error running method 'echo.Echo/Echo': invalid request body, '!!!' is not a valid base64 string for field 'blob'

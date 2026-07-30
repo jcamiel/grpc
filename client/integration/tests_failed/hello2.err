@@ -1,1 +1,1 @@
-error: Error running method 'helloworld.Greeter/SayHello': invalid request body, bad input for field 'name' expecting JSON string actual number
+error: Error running method 'helloworld.Greeter/SayHello': invalid request body, expecting string for field 'name' while actual is number

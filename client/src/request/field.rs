@@ -18,6 +18,9 @@
 use std::fmt;
 use std::fmt::Formatter;
 
+use base64::Engine;
+use base64::alphabet;
+use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use serde_json::{Map, Number, Value};
 
 use crate::schema::descriptor::{DescriptorProto, FieldDescriptorProto, FieldLabel, FieldType};
@@ -63,6 +66,8 @@ pub enum FieldKind {
     /// All floating-point fields
     Double(f64),
     Float(f32),
+    /// A bytes field
+    Bytes(Vec<u8>),
 }
 
 #[derive(Debug)]
@@ -81,6 +86,8 @@ pub enum FieldError {
     JsonNumberOutOfRange { field: String, value: String },
     /// A string is used for representing integer, but this string is not parseable as an integer
     InvalidStringAsInteger { field: String, value: String },
+    /// The JSON value is a string but not valid base64.
+    InvalidBase64 { field: String, value: String },
 }
 
 impl fmt::Display for FieldError {
@@ -92,23 +99,24 @@ impl fmt::Display for FieldError {
                 actual,
             } => write!(
                 f,
-                "bad input for field '{field}' expecting JSON {expected} actual {actual}"
+                "expecting {expected} for field '{field}' while actual is {actual}"
             ),
-            FieldError::UnresolvedType { field, type_name } => write!(
-                f,
-                "bad input for field '{field}' type '{type_name}' is unknown"
-            ),
+            FieldError::UnresolvedType { field, type_name } => {
+                write!(f, "type '{type_name}' is unknown for field '{field}'")
+            }
             FieldError::UnknownJsonField { field, type_name } => write!(
                 f,
                 "message type '{type_name}' has no known field named '{field}'"
             ),
-            FieldError::JsonNumberOutOfRange { field, value } => write!(
+            FieldError::JsonNumberOutOfRange { field, value } => {
+                write!(f, "number '{value}' is out of range for field '{field}'")
+            }
+            FieldError::InvalidStringAsInteger { field, value } => {
+                write!(f, "parsing '{value}' as integer failed for field '{field}'")
+            }
+            FieldError::InvalidBase64 { field, value } => write!(
                 f,
-                "bad input for field '{field}' JSON number '{value}' is out of range"
-            ),
-            FieldError::InvalidStringAsInteger { field, value } => write!(
-                f,
-                "bad input for field '{field}' parsing '{value}' as integer failed"
+                "'{value}' is not a valid base64 string for field '{field}'"
             ),
         }
     }
@@ -147,7 +155,7 @@ impl Field {
             FieldType::String => try_new_string(value, &name, number),
             FieldType::Group => todo!(),
             FieldType::Message => try_new_message(descriptor, symbols, value, &name, number),
-            FieldType::Bytes => todo!(),
+            FieldType::Bytes => try_new_bytes(&value, &name, number),
             FieldType::UInt32 => try_new_uint32(&value, &name, number),
             FieldType::Enum => todo!(),
             FieldType::SFixed32 => try_new_sfixed32(&value, &name, number),
@@ -186,6 +194,7 @@ impl Field {
             FieldKind::Fixed64(v) => *v == 0,
             FieldKind::Double(v) => *v == 0.0,
             FieldKind::Float(v) => *v == 0.0,
+            FieldKind::Bytes(v) => v.is_empty(),
         }
     }
 }
@@ -282,6 +291,27 @@ fn try_new_float(value: &Value, name: &str, number: u32) -> Result<Field, FieldE
     let v = parse_f32(value, name)?;
     Ok(Field {
         kind: FieldKind::Float(v),
+        number,
+    })
+}
+
+/// Standard-alphabet base64 decoder with indifferent padding.
+const BASE64_STD: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::STANDARD,
+    GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
+);
+
+/// URL-safe alphabet base64 decoder with indifferent padding.
+const BASE64_URL: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::URL_SAFE,
+    GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
+);
+
+/// Creates a new `Field` instance from a JSON `value` representing a `bytes` field.
+fn try_new_bytes(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
+    let v = parse_bytes(value, name)?;
+    Ok(Field {
+        kind: FieldKind::Bytes(v),
         number,
     })
 }
@@ -427,6 +457,7 @@ impl Field {
             FieldKind::Fixed64(v) => writer.write_fixed64_field(self.number, *v),
             FieldKind::Double(v) => writer.write_double_field(self.number, *v),
             FieldKind::Float(v) => writer.write_float_field(self.number, *v),
+            FieldKind::Bytes(v) => writer.write_bytes_field(self.number, v),
         }
     }
 }
@@ -457,6 +488,7 @@ fn parse_u32(value: &Value, name: &str) -> Result<u32, FieldError> {
 fn parse_i64(value: &Value, name: &str) -> Result<i64, FieldError> {
     // We accept both JSON numbers and JSON strings, proto3 JSON canonicalizes 64-bit integers as
     // strings to avoid the f64 precision loss that JSON parsers apply to numbers above 2^53.
+    // See <https://protobuf.dev/programming-guides/json/>
     match value {
         Value::Number(n) => n.as_i64().ok_or(FieldError::JsonNumberOutOfRange {
             field: name.to_string(),
@@ -480,6 +512,7 @@ fn parse_i64(value: &Value, name: &str) -> Result<i64, FieldError> {
 fn parse_u64(value: &Value, name: &str) -> Result<u64, FieldError> {
     // We accept both JSON numbers and JSON strings, proto3 JSON canonicalizes 64-bit integers as
     // strings to avoid the f64 precision loss that JSON parsers apply to numbers above 2^53.
+    // See <https://protobuf.dev/programming-guides/json/>
     match value {
         Value::Number(n) => n.as_u64().ok_or(FieldError::JsonNumberOutOfRange {
             field: name.to_string(),
@@ -512,6 +545,29 @@ fn parse_f64(value: &Value, name: &str) -> Result<f64, FieldError> {
         field: name.to_string(),
         value: n.to_string(),
     })
+}
+
+/// Extracts a byte vector from a JSON [`Value`].
+fn parse_bytes(value: &Value, name: &str) -> Result<Vec<u8>, FieldError> {
+    // Expects a base64 string. Accepts both the standard alphabet (`+`/`/`) and the url-safe alphabet
+    // (`-`/`_`), with or without padding, see <https://protobuf.dev/programming-guides/json/>.
+    //
+    // > JSON value will be the data encoded as a string using standard base64 encoding with
+    // > paddings. Either standard or URL-safe base64 encoding with/without paddings are accepted.
+    let Value::String(s) = value else {
+        return Err(FieldError::InvalidJsonInputType {
+            field: name.to_string(),
+            expected: "base64 string".to_string(),
+            actual: type_of_value(value).to_string(),
+        });
+    };
+    BASE64_STD
+        .decode(s)
+        .or_else(|_| BASE64_URL.decode(s))
+        .map_err(|_| FieldError::InvalidBase64 {
+            field: name.to_string(),
+            value: s.clone(),
+        })
 }
 
 /// Extracts an `f32` from a JSON [`Value`].
@@ -552,7 +608,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    // ---- parse_i32 ----
+    // parse_i32 tests
 
     #[test]
     fn parse_i32_accepts_positive() {
@@ -587,7 +643,7 @@ mod tests {
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 
-    // ---- parse_u32 ----
+    // parse_u32 tests
 
     #[test]
     fn parse_u32_accepts_integer() {
@@ -618,7 +674,7 @@ mod tests {
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 
-    // ---- parse_i64 ----
+    // parse_i64 tests
 
     #[test]
     fn parse_i64_accepts_integer() {
@@ -651,7 +707,7 @@ mod tests {
     #[test]
     fn parse_i64_rejects_unparseable_string() {
         let err = parse_i64(&json!("not-a-number"), "field").unwrap_err();
-        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+        assert!(matches!(err, FieldError::InvalidStringAsInteger { .. }));
     }
 
     #[test]
@@ -661,7 +717,7 @@ mod tests {
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 
-    // ---- parse_u64 ----
+    // parse_u64 tests
 
     #[test]
     fn parse_u64_accepts_integer() {
@@ -695,9 +751,9 @@ mod tests {
 
     #[test]
     fn parse_u64_rejects_negative_string() {
-        // "-1".parse::<u64>() fails, routes to JsonNumberOutOfRange.
+        // "-1".parse::<u64>() fails, routes to InvalidStringAsInteger.
         let err = parse_u64(&json!("-1"), "field").unwrap_err();
-        assert!(matches!(err, FieldError::JsonNumberOutOfRange { .. }));
+        assert!(matches!(err, FieldError::InvalidStringAsInteger { .. }));
     }
 
     #[test]
@@ -706,7 +762,7 @@ mod tests {
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 
-    // ---- parse_f64 ----
+    // parse_f64 tests
 
     #[test]
     fn parse_f64_accepts_float() {
@@ -731,7 +787,7 @@ mod tests {
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 
-    // ---- parse_f32 ----
+    // parse_f32 tests
 
     #[test]
     fn parse_f32_accepts_float() {
@@ -758,6 +814,49 @@ mod tests {
     #[test]
     fn parse_f32_rejects_non_number() {
         let err = parse_f32(&json!("1.5"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
+    }
+
+    // parse_bytes tests
+
+    #[test]
+    fn parse_bytes_accepts_standard_base64_with_padding() {
+        // "hello" => base64 standard alphabet, padded.
+        assert_eq!(parse_bytes(&json!("aGVsbG8="), "field").unwrap(), b"hello");
+    }
+
+    #[test]
+    fn parse_bytes_accepts_standard_base64_without_padding() {
+        // Same "hello" without the trailing `=`.
+        assert_eq!(parse_bytes(&json!("aGVsbG8"), "field").unwrap(), b"hello");
+    }
+
+    #[test]
+    fn parse_bytes_accepts_url_safe_alphabet() {
+        // The bytes `[0xfb, 0xff, 0xff]` encode to `+///` in standard base64 and `-___` in
+        // url-safe. The `-` character is not in the standard alphabet, so this input can only
+        // decode via the url-safe fallback engine.
+        assert_eq!(
+            parse_bytes(&json!("-___"), "field").unwrap(),
+            vec![0xfb, 0xff, 0xff]
+        );
+    }
+
+    #[test]
+    fn parse_bytes_accepts_empty() {
+        assert_eq!(parse_bytes(&json!(""), "field").unwrap(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn parse_bytes_rejects_invalid_base64() {
+        // `!` is not in either base64 alphabet.
+        let err = parse_bytes(&json!("not!base64"), "field").unwrap_err();
+        assert!(matches!(err, FieldError::InvalidBase64 { .. }));
+    }
+
+    #[test]
+    fn parse_bytes_rejects_non_string() {
+        let err = parse_bytes(&json!(42), "field").unwrap_err();
         assert!(matches!(err, FieldError::InvalidJsonInputType { .. }));
     }
 }

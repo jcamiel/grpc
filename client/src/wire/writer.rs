@@ -182,6 +182,15 @@ impl Writer {
         self.write_bytes(&value.to_le_bytes());
     }
 
+    /// Writes a bytes field.
+    pub fn write_bytes_field(&mut self, number: u32, value: &[u8]) {
+        //  (LEN wire type, raw payload, same wire shape as `string`/`message`)
+        let tag = (number << 3) | WireType::Len as u32;
+        self.write_varint(tag as u64);
+        self.write_varint(value.len() as u64);
+        self.write_bytes(value);
+    }
+
     /// Writes the begin of a gRPC frame.
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
@@ -358,5 +367,13 @@ mod tests {
         w.write_float_field(1, 1.5);
         // tag 0x0d (I32 wire type), then 4 bytes LE for 1.5 = 0x3FC0_0000
         assert_eq!(w.bytes(), [0x0d, 0x00, 0x00, 0xc0, 0x3f]);
+    }
+
+    #[test]
+    fn write_bytes() {
+        let mut w = Writer::new();
+        w.write_bytes_field(1, b"hello");
+        // tag 0x0a (LEN wire type), length 5, then "hello".
+        assert_eq!(w.bytes(), [0x0a, 0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f]);
     }
 }

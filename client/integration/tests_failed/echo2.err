@@ -1,1 +1,1 @@
-error: Error running method 'echo.Echo/Echo': invalid request body, bad input for field 'text' expecting JSON string actual number
+error: Error running method 'echo.Echo/Echo': invalid request body, expecting string for field 'text' while actual is number
