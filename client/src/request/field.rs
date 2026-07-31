@@ -199,7 +199,6 @@ impl Field {
             FieldType::Fixed32 => try_new_fixed32(&value, &name, number),
             FieldType::Bool => try_new_bool(&value, &name, number),
             FieldType::String => try_new_string(value, &name, number),
-            FieldType::Group => todo!(),
             FieldType::Message => try_new_message(descriptor, symbols, value, &name, number),
             FieldType::Bytes => try_new_bytes(&value, &name, number),
             FieldType::UInt32 => try_new_uint32(&value, &name, number),
@@ -208,6 +207,16 @@ impl Field {
             FieldType::SFixed64 => try_new_sfixed64(&value, &name, number),
             FieldType::SInt32 => try_new_sint32(&value, &name, number),
             FieldType::SInt64 => try_new_sint64(&value, &name, number),
+            FieldType::Group => {
+                // See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L243>
+                // > Group type is deprecated and not supported after google.protobuf. However, Proto3
+                // > implementations should still be able to parse the group wire format and
+                // > treat group fields as unknown fields.
+                return Err(FieldError::UnsupportedSyntax {
+                    field: name.to_string(),
+                    reason: "group type",
+                });
+            }
         }?;
 
         if !descriptor.has_explicit_presence() && field.equals_default() {
