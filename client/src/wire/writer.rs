@@ -191,6 +191,13 @@ impl Writer {
         self.write_bytes(value);
     }
 
+    /// Writes an enum field. Wire encoding is identical to `int32`.
+    pub fn write_enum_field(&mut self, number: u32, value: i32) {
+        let tag = (number << 3) | WireType::VarInt as u32;
+        self.write_varint(tag as u64);
+        self.write_varint(value as i64 as u64);
+    }
+
     /// Writes the begin of a gRPC frame.
     pub fn begin_grpc_frame(&mut self) {
         // Reserve the 5-byte gRPC Length-Prefixed-Message header at offset 0.
@@ -375,5 +382,26 @@ mod tests {
         w.write_bytes_field(1, b"hello");
         // tag 0x0a (LEN wire type), length 5, then "hello".
         assert_eq!(w.bytes(), [0x0a, 0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f]);
+    }
+
+    #[test]
+    fn write_enum() {
+        let mut w = Writer::new();
+        w.write_enum_field(1, 2);
+        // Identical wire shape to int32(2): tag 0x08 + single-byte varint 0x02.
+        assert_eq!(w.bytes(), [0x08, 0x02]);
+    }
+
+    #[test]
+    fn write_enum_negative_is_ten_bytes() {
+        let mut w = Writer::new();
+        w.write_enum_field(1, -1);
+        // Same 10-byte sign-extended encoding as int32(-1).
+        assert_eq!(
+            w.bytes(),
+            [
+                0x08, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01
+            ]
+        );
     }
 }

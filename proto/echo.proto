@@ -90,4 +90,7 @@ enum Color {
   RED               = 1;
   GREEN             = 2;
   BLUE              = 3;
+  // Negative value — exercises the sign-extended-varint path on the wire.
+  ULTRAVIOLET       = -1;
 }
+

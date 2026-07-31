@@ -352,7 +352,7 @@ impl FieldDescriptorProto {
     ///
     /// Three sources of explicit presence in proto3:
     /// 1. Singular message-typed fields — always.
-    /// 2. Fields inside a `oneof` — covers both user-declared oneofs and the synthetic single-member
+    /// 2. Fields inside a `oneof`, covers both user-declared oneofs and the synthetic single-member
     ///    oneof that `optional` generates.
     /// 3. Nothing else. Bare scalars / enums, repeated, and map fields have **implicit** presence:
     ///    default value is indistinguishable from unset.

@@ -112,12 +112,11 @@ impl Request {
     }
 }
 
-/// Parse a gRPC URL path into `(service FQN, method name)`.
+/// Parses a gRPC URL path into `(service FQN, method name)`.
 ///
-/// gRPC paths take the form `/pkg.Service/Method` — a single slash-separated service+method pair.
+/// gRPC paths take the form `/pkg.Service/Method`, a single slash-separated service+method pair.
 /// We accept additional leading path segments and treat everything except the last segment as the
-/// service name (joined with `.`), which matches the older curl-style convention of typing the
-/// service path directly into the URL.
+/// service name (joined with `.`), which matches the curl-style of service path directly into the URL.
 fn parse_grpc_path(url: &Url) -> Result<(String, String), RunnerError> {
     let path = url.path();
     if path.is_empty() || path == "/" {

@@ -1,3 +1,4 @@
 - [ ] accept "Nan", "+Infinity", "-Infinity" as valid value for float
 - [ ] when decoding 64-bit integers, deserialize them as string
 - [ ] accept string for 32-bit integers
+- [ ] remove the mitmproxy dependance from server

@@ -68,6 +68,8 @@ pub enum FieldKind {
     Float(f32),
     /// A bytes field
     Bytes(Vec<u8>),
+    /// An enum field (stored as its i32 numeric value)
+    Enum(i32),
 }
 
 #[derive(Debug)]
@@ -75,8 +77,8 @@ pub enum FieldError {
     /// The JSON input type doesn't match the expected type given the actual descripor
     InvalidJsonInputType {
         field: String,
-        expected: String,
-        actual: String,
+        expected: &'static str,
+        actual: &'static str,
     },
     /// The symbol table (or the descriptor) doesn't know the type `type_name` of a field named `field`.
     UnresolvedType { field: String, type_name: String },
@@ -88,6 +90,16 @@ pub enum FieldError {
     InvalidStringAsInteger { field: String, value: String },
     /// The JSON value is a string but not valid base64.
     InvalidBase64 { field: String, value: String },
+    /// The JSON string is not a known value name for the target enum type.
+    UnknownEnumValue {
+        field: String,
+        enum_type: String,
+        name: String,
+    },
+    /// A non supported proto syntax is used (we're only supporting proto3)
+    UnsupportedSyntax { field: String, reason: &'static str },
+    /// A generic error
+    GenericError { field: String, reason: &'static str },
 }
 
 impl fmt::Display for FieldError {
@@ -106,7 +118,7 @@ impl fmt::Display for FieldError {
             }
             FieldError::UnknownJsonField { field, type_name } => write!(
                 f,
-                "message type '{type_name}' has no known field named '{field}'"
+                "message '{type_name}' has no known field named '{field}'"
             ),
             FieldError::JsonNumberOutOfRange { field, value } => {
                 write!(f, "number '{value}' is out of range for field '{field}'")
@@ -118,6 +130,19 @@ impl fmt::Display for FieldError {
                 f,
                 "'{value}' is not a valid base64 string for field '{field}'"
             ),
+            FieldError::UnknownEnumValue {
+                field,
+                enum_type,
+                name,
+            } => write!(
+                f,
+                "enum '{enum_type}' has no value named '{name}' for field '{field}'"
+            ),
+            FieldError::UnsupportedSyntax { field, reason } => write!(
+                f,
+                "{reason} unsupported syntax in proto3 for field '{field}'"
+            ),
+            FieldError::GenericError { field, reason } => write!(f, "{reason} for field '{field}'"),
         }
     }
 }
@@ -128,13 +153,34 @@ impl Field {
         symbols: &SymbolTable,
         value: Value,
     ) -> Result<Option<Self>, FieldError> {
-        // TODO: check validity of descripto.label
-        assert!(descriptor.name.is_some());
-        assert!(!matches!(descriptor.label.unwrap(), FieldLabel::Required));
-        assert!(descriptor.r#type.is_some());
-        assert!(descriptor.number.is_some());
+        // We check some properties on the field before creating a new `Field` instance.
 
+        // This method can only be called when we have matched a JSON field with a descriptor name.
+        // So we can assume that the descriptor's name exists.
+        assert!(descriptor.name.is_some());
         let name = descriptor.name.clone().unwrap();
+
+        // We're only supporting protobuf3 syntax. See <https://github.com/protocolbuffers/protobuf/blob/v32.0/src/google/protobuf/descriptor.proto#L243>
+        // > The required label is only allowed in google.protobuf. In proto3 and Editions it's explicitly prohibited.
+        if matches!(descriptor.label.unwrap(), FieldLabel::Required) {
+            return Err(FieldError::UnsupportedSyntax {
+                field: name,
+                reason: "required label",
+            });
+        }
+        if descriptor.r#type.is_none() {
+            return Err(FieldError::GenericError {
+                field: name,
+                reason: "missing field type information",
+            });
+        }
+        if descriptor.number.is_none() {
+            return Err(FieldError::GenericError {
+                field: name,
+                reason: "missing field number",
+            });
+        }
+
         let field_type = descriptor.r#type.unwrap();
         let number = descriptor.number.unwrap();
 
@@ -157,7 +203,7 @@ impl Field {
             FieldType::Message => try_new_message(descriptor, symbols, value, &name, number),
             FieldType::Bytes => try_new_bytes(&value, &name, number),
             FieldType::UInt32 => try_new_uint32(&value, &name, number),
-            FieldType::Enum => todo!(),
+            FieldType::Enum => try_new_enum(descriptor, symbols, &value, &name, number),
             FieldType::SFixed32 => try_new_sfixed32(&value, &name, number),
             FieldType::SFixed64 => try_new_sfixed64(&value, &name, number),
             FieldType::SInt32 => try_new_sint32(&value, &name, number),
@@ -173,7 +219,7 @@ impl Field {
 
     /// Returns `true` if this field is equal to its default value.
     ///
-    /// We're using it to transmit only the fields that have non-defualt value.
+    /// We're using it to transmit only the fields that have non-default value.
     fn equals_default(&self) -> bool {
         match &self.kind {
             FieldKind::String(v) => v.is_empty(),
@@ -195,6 +241,7 @@ impl Field {
             FieldKind::Double(v) => *v == 0.0,
             FieldKind::Float(v) => *v == 0.0,
             FieldKind::Bytes(v) => v.is_empty(),
+            FieldKind::Enum(v) => *v == 0,
         }
     }
 }
@@ -307,6 +354,63 @@ const BASE64_URL: GeneralPurpose = GeneralPurpose::new(
     GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
 );
 
+/// Creates a new `Field` instance from a JSON `value` representing an `enum` field.
+fn try_new_enum(
+    descriptor: &FieldDescriptorProto,
+    symbols: &SymbolTable,
+    value: &Value,
+    name: &str,
+    number: u32,
+) -> Result<Field, FieldError> {
+    let type_name = match &descriptor.type_name {
+        Some(t) => t,
+        None => {
+            // TODO: do we need to try to find the enum type? (like C++ scoping, searching in parent root etc...)
+            return Err(FieldError::GenericError {
+                field: name.to_string(),
+                reason: "missing enum type name",
+            });
+        }
+    };
+
+    // We have the enum type name, we search through the symbol table the right enum descriptor.
+    let enum_descriptor = symbols
+        .find_enum(type_name)
+        .ok_or(FieldError::UnresolvedType {
+            field: name.to_string(),
+            type_name: type_name.to_string(),
+        })?;
+
+    // For enum, we accept either JSON number (if the user references the enum value), or a JSON
+    // string (if the user references the enum name)
+    let v = match value {
+        Value::String(s) => enum_descriptor
+            .values
+            .iter()
+            .find(|v| v.name.as_deref() == Some(s))
+            .and_then(|v| v.number)
+            .ok_or(FieldError::UnknownEnumValue {
+                field: name.to_string(),
+                enum_type: enum_descriptor.fqn.clone(),
+                name: s.clone(),
+            })?,
+        // Unknown numeric values are accepted in proto3, the receiver will decide how to interpret
+        // these values.
+        Value::Number(_) => parse_i32(value, name)?,
+        _ => {
+            return Err(FieldError::InvalidJsonInputType {
+                field: name.to_string(),
+                expected: "enum value name or integer",
+                actual: type_of_value(value),
+            });
+        }
+    };
+    Ok(Field {
+        kind: FieldKind::Enum(v),
+        number,
+    })
+}
+
 /// Creates a new `Field` instance from a JSON `value` representing a `bytes` field.
 fn try_new_bytes(value: &Value, name: &str, number: u32) -> Result<Field, FieldError> {
     let v = parse_bytes(value, name)?;
@@ -342,8 +446,8 @@ fn try_new_bool(value: &Value, name: &str, number: u32) -> Result<Field, FieldEr
     let Value::Bool(v) = value else {
         return Err(FieldError::InvalidJsonInputType {
             field: name.to_string(),
-            expected: "boolean".to_string(),
-            actual: type_of_value(value).to_string(),
+            expected: "boolean",
+            actual: type_of_value(value),
         });
     };
     Ok(Field {
@@ -386,8 +490,8 @@ fn try_new_message(
     let Value::Object(obj) = value else {
         return Err(FieldError::InvalidJsonInputType {
             field: name.to_string(),
-            expected: "object".to_string(),
-            actual: type_of_value(&value).to_string(),
+            expected: "object",
+            actual: type_of_value(&value),
         });
     };
     let type_name = descriptor.type_name.as_deref().unwrap();
@@ -413,12 +517,10 @@ fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldE
             Ok(Field { kind, number })
         }
         actual => {
-            let expected = "string".to_string();
-            let actual = type_of_value(&actual).to_string();
             let err = FieldError::InvalidJsonInputType {
                 field: name.to_string(),
-                expected,
-                actual,
+                expected: "string",
+                actual: type_of_value(&actual),
             };
             Err(err)
         }
@@ -426,6 +528,7 @@ fn try_new_string(value: Value, name: &str, number: u32) -> Result<Field, FieldE
 }
 
 impl Field {
+    /// Serializes this field to a writer. This is were we transform a field instance to proto bytes.
     pub fn encode(&self, writer: &mut Writer) {
         match &self.kind {
             FieldKind::String(value) => writer.write_string_field(self.number, value),
@@ -458,6 +561,7 @@ impl Field {
             FieldKind::Double(v) => writer.write_double_field(self.number, *v),
             FieldKind::Float(v) => writer.write_float_field(self.number, *v),
             FieldKind::Bytes(v) => writer.write_bytes_field(self.number, v),
+            FieldKind::Enum(v) => writer.write_enum_field(self.number, *v),
         }
     }
 }
@@ -502,8 +606,8 @@ fn parse_i64(value: &Value, name: &str) -> Result<i64, FieldError> {
             }),
         _ => Err(FieldError::InvalidJsonInputType {
             field: name.to_string(),
-            expected: "integer or string".to_string(),
-            actual: type_of_value(value).to_string(),
+            expected: "integer or string",
+            actual: type_of_value(value),
         }),
     }
 }
@@ -526,8 +630,8 @@ fn parse_u64(value: &Value, name: &str) -> Result<u64, FieldError> {
             }),
         _ => Err(FieldError::InvalidJsonInputType {
             field: name.to_string(),
-            expected: "integer or string".to_string(),
-            actual: type_of_value(value).to_string(),
+            expected: "integer or string",
+            actual: type_of_value(value),
         }),
     }
 }
@@ -537,8 +641,8 @@ fn parse_f64(value: &Value, name: &str) -> Result<f64, FieldError> {
     let Value::Number(n) = value else {
         return Err(FieldError::InvalidJsonInputType {
             field: name.to_string(),
-            expected: "number".to_string(),
-            actual: type_of_value(value).to_string(),
+            expected: "number",
+            actual: type_of_value(value),
         });
     };
     n.as_f64().ok_or(FieldError::JsonNumberOutOfRange {
@@ -557,8 +661,8 @@ fn parse_bytes(value: &Value, name: &str) -> Result<Vec<u8>, FieldError> {
     let Value::String(s) = value else {
         return Err(FieldError::InvalidJsonInputType {
             field: name.to_string(),
-            expected: "base64 string".to_string(),
-            actual: type_of_value(value).to_string(),
+            expected: "base64 string",
+            actual: type_of_value(value),
         });
     };
     BASE64_STD
@@ -573,7 +677,7 @@ fn parse_bytes(value: &Value, name: &str) -> Result<Vec<u8>, FieldError> {
 /// Extracts an `f32` from a JSON [`Value`].
 fn parse_f32(value: &Value, name: &str) -> Result<f32, FieldError> {
     // Delegates to [`parse_f64`] for the shape check, then narrows. Values outside the `f32` range
-    // silently coerce to `±f32::INFINITY` — this matches Google's protoc canonical behavior.
+    // silently coerce to `+/-f32::INFINITY`, this matches Google's protoc canonical behavior.
     parse_f64(value, name).map(|f| f as f32)
 }
 
@@ -596,8 +700,8 @@ fn try_integer_from<'value>(
     let Value::Number(n) = value else {
         return Err(FieldError::InvalidJsonInputType {
             field: name.to_string(),
-            expected: "integer".to_string(),
-            actual: type_of_value(value).to_string(),
+            expected: "integer",
+            actual: type_of_value(value),
         });
     };
     Ok(n)
